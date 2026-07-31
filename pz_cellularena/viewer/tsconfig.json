@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "lib": ["ES2021", "dom"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "target": "ES2021",
+    "noImplicitAny": false,
+    "types": ["pixi.js"]
+  },
+  "include": ["ts"]
+}

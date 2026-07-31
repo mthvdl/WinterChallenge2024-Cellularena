@@ -1,0 +1,1267 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "delete-legacy-cellularena",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Remove-Item -LiteralPath \"c:\\git_clones\\WinterChallenge2024-Cellularena\\pz_cellularena\\cellularena\" -Recurse -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "pytest-cellularena-smoke",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"-m",
+				"pytest",
+				"-q",
+				"pz_cellularena/test_env.py",
+				"pz_cellularena/test_replay.py",
+				"pz_cellularena/test_prioritized_replay.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "python-smoke-scripts",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"python pz_cellularena/test_env.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python pz_cellularena/test_replay.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python pz_cellularena/test_prioritized_replay.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "git-status-short",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"-C",
+				"c:\\git_clones\\WinterChallenge2024-Cellularena",
+				"status",
+				"--short"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "install-pytest",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"-m",
+				"pip",
+				"install",
+				"pytest"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "pytest-smoke-suite",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"-m",
+				"pytest",
+				"-q",
+				"pz_cellularena/test_env.py",
+				"pz_cellularena/test_replay.py",
+				"pz_cellularena/test_prioritized_replay.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "train-rainbow-smoke",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"cd pz_cellularena; python train_rainbow.py --env-factory games.cellularena.factories:make_env --game cellularena --experiment-name smoke_dqn_cutover --total-steps 128 --n-envs 1 --buffer-size 512 --replay-min-size 32 --batch-size 8 --collect-steps-per-env 1 --updates-per-iteration 1 --eval-interval 256 --self-play --reset-replay"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "check-cellularena-env-torch",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"-c",
+				"import torch; print(torch.__version__)"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "check-cellularena-env-pytest",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"-m",
+				"pytest",
+				"--version"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "install-pytest-cellularena-env",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"-m",
+				"pip",
+				"install",
+				"pytest"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "pytest-smoke-cellularena-env",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"-m",
+				"pytest",
+				"-q",
+				"pz_cellularena/test_env.py",
+				"pz_cellularena/test_replay.py",
+				"pz_cellularena/test_prioritized_replay.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "train-rainbow-smoke-cellularena-env",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"pz_cellularena/train_rainbow.py",
+				"--env-factory",
+				"games.cellularena.factories:make_env",
+				"--game",
+				"cellularena",
+				"--experiment-name",
+				"smoke_dqn_cutover",
+				"--total-steps",
+				"128",
+				"--n-envs",
+				"1",
+				"--buffer-size",
+				"512",
+				"--replay-min-size",
+				"32",
+				"--batch-size",
+				"8",
+				"--collect-steps-per-env",
+				"1",
+				"--updates-per-iteration",
+				"1",
+				"--eval-interval",
+				"256",
+				"--self-play",
+				"--reset-replay"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "check-smoke-artifact-sizes",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-Item \"pz_cellularena/experiments/cellularena/smoke_dqn_cutover/replay_store/replay.duckdb\" | Select-Object FullName,Length; Get-Item \"pz_cellularena/experiments/cellularena/smoke_dqn_cutover/replay_store/per_index.sqlite\" | Select-Object FullName,Length"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "inspect-tfevents-timestamps",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-ChildItem -Path . -Recurse -Filter \"events.out.tfevents.*\" | Select-Object FullName,LastWriteTime,Length | Sort-Object LastWriteTime -Descending | Select-Object -First 5"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "inspect-tfevents-details",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-ChildItem -Path . -Recurse -Filter \"events.out.tfevents.*\" | Sort-Object LastWriteTime -Descending | Select-Object -First 5 | ForEach-Object { $_ | Format-List FullName,LastWriteTime,Length }"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "train-rainbow-smoke-cellularena-env-v2",
+			"type": "shell",
+			"command": "conda",
+			"args": [
+				"run",
+				"-n",
+				"cellularena",
+				"python",
+				"pz_cellularena/train_rainbow.py",
+				"--env-factory",
+				"games.cellularena.factories:make_env",
+				"--game",
+				"cellularena",
+				"--experiment-name",
+				"smoke_dqn_cutover_v2",
+				"--total-steps",
+				"128",
+				"--n-envs",
+				"1",
+				"--buffer-size",
+				"512",
+				"--replay-min-size",
+				"32",
+				"--batch-size",
+				"8",
+				"--collect-steps-per-env",
+				"1",
+				"--updates-per-iteration",
+				"1",
+				"--eval-interval",
+				"256",
+				"--self-play",
+				"--reset-replay"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-neu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nv6a10-neu",
+				"--location",
+				"northeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NV6ads_A10_v5",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-neu-nv4asv4",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nv4asv4-neu",
+				"--location",
+				"northeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NV4as_v4",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-weu-nc6sv3",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nc6sv3-weu",
+				"--location",
+				"westeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NC6s_v3",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-frc-nc6sv3",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nc6sv3-frc",
+				"--location",
+				"francecentral",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NC6s_v3",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-weu-nc12sv3",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nc12sv3-weu",
+				"--location",
+				"westeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NC12s_v3",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-neu-nc4ast4",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nc4ast4-neu",
+				"--location",
+				"northeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NC4as_T4_v3",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-neu-nv12sv3",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nv12sv3-neu",
+				"--location",
+				"northeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NV12s_v3",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-gpu-alt-vm-test-weu-nc6sv3-spot",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"create",
+				"--resource-group",
+				"cellularena-rg",
+				"--name",
+				"cellgpu-nc6sv3spot-weu",
+				"--location",
+				"westeurope",
+				"--image",
+				"Ubuntu2204",
+				"--size",
+				"Standard_NC6s_v3",
+				"--priority",
+				"Spot",
+				"--max-price",
+				"-1",
+				"--eviction-policy",
+				"Deallocate",
+				"--admin-username",
+				"azureuser",
+				"--ssh-key-values",
+				"C:\\Users\\mvidal\\.ssh\\cellularena_azure_ed25519.pub",
+				"--public-ip-sku",
+				"Standard",
+				"--only-show-errors",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-list-after-gpu-tests",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"list",
+				"-d",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-provisioning-states",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"show",
+				"-g",
+				"cellularena-rg",
+				"-n",
+				"cellgpu-nc6sv3-weu",
+				"--query",
+				"{name:name,provisioningState:provisioningState,power:instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus | [0], privateIps:privateIps, publicIps:publicIps, location:location}",
+				"-d",
+				"-o",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-show-nc6sv3-weu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"show",
+				"-g",
+				"cellularena-rg",
+				"-n",
+				"cellgpu-nc6sv3-weu",
+				"-d",
+				"--query",
+				"{name:name,provisioningState:provisioningState,powerState:powerState,publicIps:publicIps,privateIps:privateIps,location:location,vmSize:hardwareProfile.vmSize}",
+				"-o",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-show-nc12sv3-weu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"show",
+				"-g",
+				"cellularena-rg",
+				"-n",
+				"cellgpu-nc12sv3-weu",
+				"-d",
+				"--query",
+				"{name:name,provisioningState:provisioningState,powerState:powerState,publicIps:publicIps,privateIps:privateIps,location:location,vmSize:hardwareProfile.vmSize}",
+				"-o",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-show-nc6sv3spot-weu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"show",
+				"-g",
+				"cellularena-rg",
+				"-n",
+				"cellgpu-nc6sv3spot-weu",
+				"-d",
+				"--query",
+				"{name:name,provisioningState:provisioningState,powerState:powerState,publicIps:publicIps,privateIps:privateIps,location:location,vmSize:hardwareProfile.vmSize,priority:priority}",
+				"-o",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-vm-list-details-json",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"list",
+				"-d",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-rg-exists",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"exists",
+				"-n",
+				"cellularena-rg",
+				"--output",
+				"tsv"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-rg-blocking",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"delete",
+				"-n",
+				"cellularena-rg",
+				"--yes"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-rg-exists-2",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"exists",
+				"-n",
+				"cellularena-rg",
+				"--output",
+				"tsv"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-no-cellgpu-resources",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"resource",
+				"list",
+				"--query",
+				"[?contains(name,'cellgpu') || contains(resourceGroup,'cellularena-rg')].{name:name,resourceGroup:resourceGroup,type:type,location:location}",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-no-cellgpu-resources-2",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"resource",
+				"list",
+				"--query",
+				"[?contains(name, 'cellgpu') || contains(resourceGroup, 'cellularena-rg')].{name:name,resourceGroup:resourceGroup,type:type,location:location}",
+				"--output",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-rg-absent",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"exists",
+				"-n",
+				"cellularena-rg",
+				"--output",
+				"tsv"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-no-cellgpu-vms",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"list",
+				"-d",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-network-watchers",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"network",
+				"watcher",
+				"list",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-networkwatcher-rg",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"list",
+				"--query",
+				"[?name=='NetworkWatcherRG'].{name:name,location:location}",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-networkwatcher-weu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"network",
+				"watcher",
+				"delete",
+				"--resource-group",
+				"NetworkWatcherRG",
+				"--name",
+				"NetworkWatcher_westeurope"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-networkwatcher-frc",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"network",
+				"watcher",
+				"delete",
+				"--resource-group",
+				"NetworkWatcherRG",
+				"--name",
+				"NetworkWatcher_francecentral"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-networkwatcher-ids",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"network",
+				"watcher",
+				"list",
+				"--query",
+				"[].id",
+				"--output",
+				"tsv"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-networkwatchers-via-resource",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"resource",
+				"delete",
+				"--ids",
+				"/subscriptions/0c868140-7a9e-434f-a58e-8c14b5e75d96/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/NetworkWatcher_westeurope",
+				"/subscriptions/0c868140-7a9e-434f-a58e-8c14b5e75d96/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/NetworkWatcher_francecentral"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-watchers-empty",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"network",
+				"watcher",
+				"list",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-networkwatcher-rg-resources",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"resource",
+				"list",
+				"-g",
+				"NetworkWatcherRG",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-networkwatcherrg",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"delete",
+				"-n",
+				"NetworkWatcherRG",
+				"--yes"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-verify-networkwatcherrg-deleted",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"exists",
+				"-n",
+				"NetworkWatcherRG",
+				"--output",
+				"tsv"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-audit-gpu-quota-all-regions",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_audit_gpu_quota.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-gpu-skus-westeurope-unrestricted",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$az='C:\\Users\\mvidal\\tools\\azure-cli\\python.exe'; $skus=& $az -m azure.cli vm list-skus --location westeurope --all --resource-type virtualMachines -o json | ConvertFrom-Json; $ok=@($skus | Where-Object { $gpuCap = $_.capabilities | Where-Object { $_.name -eq 'GPUs' } | Select-Object -First 1; $hasGpu = $gpuCap -and ([int]$gpuCap.value -gt 0); $restrCount = @($_.restrictions).Count; $hasGpu -and ($restrCount -eq 0) }); 'Unrestricted GPU SKUs in westeurope: ' + $ok.Count; $ok | Select-Object -First 30 -ExpandProperty name"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-n-skus-westeurope",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-m",
+				"azure.cli",
+				"vm",
+				"list-skus",
+				"--location",
+				"westeurope",
+				"--size",
+				"Standard_N",
+				"--all",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-try-gpu-vm-cheap-to-expensive-stop-on-success",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_try_gpu_vm.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-temp-gpu-rgs",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-m",
+				"azure.cli",
+				"group",
+				"list",
+				"--query",
+				"[?starts_with(name, 'cellgpu-try-20260730-rg-')].name",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-temp-gpu-rgs-v2",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$az='C:\\Users\\mvidal\\tools\\azure-cli\\python.exe'; & $az -m azure.cli group list --query \"[].name\" -o tsv | Select-String 'cellgpu-try-20260730-rg-'"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-groups-table",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"list",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-delete-temp-rg-01",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"delete",
+				"-n",
+				"cellgpu-try-20260730-rg-01",
+				"--yes"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-cleanup-all-cellgpu-try-rgs",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$az='C:\\Users\\mvidal\\tools\\azure-cli\\python.exe'; $groups=& $az -IBm azure.cli group list -o json | ConvertFrom-Json; $targets=@($groups | Where-Object { $_.name -like 'cellgpu-try-20260730-rg-*' } | Select-Object -ExpandProperty name); 'Target groups: ' + $targets.Count; foreach($g in $targets){ 'Deleting ' + $g; & $az -IBm azure.cli group delete -n $g --yes }"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-run-cleanup-cellgpu-try",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_cleanup_cellgpu_try.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-n-skus-australiaeast",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"vm",
+				"list-skus",
+				"--location",
+				"australiaeast",
+				"--size",
+				"Standard_N",
+				"--all",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-try-gpu-vm-allowed-regions-stop-on-success",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_try_gpu_vm_allowed_regions.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-n-quota-allowed-regions",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"$az='C:\\Users\\mvidal\\tools\\azure-cli\\python.exe'; $locs=@('westeurope','northeurope','francecentral','centralindia','southindia','switzerlandnorth'); foreach($l in $locs){ '--- ' + $l + ' ---'; $u=& $az -IBm azure.cli vm list-usage -l $l -o json | ConvertFrom-Json; $u | Where-Object { $_.name.value -like 'standardN*' -and ([int]$_.limit - [int]$_.currentValue) -gt 0 } | Select-Object @{N='family';E={$_.name.value}}, @{N='remaining';E={([int]$_.limit - [int]$_.currentValue)}} | Format-Table -AutoSize | Out-String | Write-Output }"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-run-check-allowed-n-quota",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_check_allowed_n_quota.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-run-match-gpu-skus-to-quota",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_match_gpu_skus_to_quota.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-try-gpu-vm-v3-stop-on-success",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_try_gpu_vm_v3.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-try-gpu-cheapest-per-region",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_try_gpu_cheapest_per_region.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-aca-gpu",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_check_aca_gpu.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-aca-profiles-raw-weu",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"containerapp",
+				"env",
+				"workload-profile",
+				"list-supported",
+				"-l",
+				"westeurope",
+				"-o",
+				"json"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-check-aca-gpu-v2",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_check_aca_gpu_v2.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-register-operationalinsights",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"provider",
+				"register",
+				"-n",
+				"Microsoft.OperationalInsights",
+				"--wait"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-run-gpu-vm-v3-fresh",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_try_gpu_vm_v3.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-list-groups-table",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"list",
+				"--output",
+				"table"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "azure-wait-aca-rg-deleted",
+			"type": "shell",
+			"command": "C:\\Users\\mvidal\\tools\\azure-cli\\python.exe",
+			"args": [
+				"-IBm",
+				"azure.cli",
+				"group",
+				"wait",
+				"--name",
+				"cellgpu-aca-20260731-rg",
+				"--deleted",
+				"--interval",
+				"15",
+				"--timeout",
+				"300"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "aca-gpu-test",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_aca_gpu_test.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "aca-gpu-test2",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".\\tmp_aca_gpu_test2.ps1"
+			],
+			"isBackground": false
+		}
+	]
+}
