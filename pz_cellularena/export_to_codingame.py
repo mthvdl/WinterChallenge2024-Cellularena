@@ -31,7 +31,7 @@ Usage
 
     # my_loader.py
     from games.cellularena.env import CellularenaEnv
-    from rl.bots.dqn_bot import DQNBot
+    from rl.rainbow.bot import DQNBot
 
     env = CellularenaEnv()
     agent = list(env.possible_agents)[0]

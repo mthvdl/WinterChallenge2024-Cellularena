@@ -207,9 +207,9 @@ def main() -> None:
     args = _build_parser().parse_args()
 
     try:
-        from rl.bots.dqn_bot import DQNBot
+        from rl.rainbow.bot import DQNBot
         from rl.logger import TrainingLogger
-        from rl.rainbow_trainer import RainbowTrainer
+        from rl.rainbow.trainer import RainbowTrainer
         from rl.self_play import LeagueSelfPlayManager, OpponentRole
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
