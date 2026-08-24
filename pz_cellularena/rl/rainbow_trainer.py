@@ -1,5 +1,5 @@
-# Moved to rl.bots.dqn_bot.  Re-exported here for backward compatibility.
-from rl.bots.dqn_bot import RainbowTrainer as RainbowTrainer  # noqa: F401
+# Moved to rl.rainbow.trainer.  Re-exported here for backward compatibility.
+from rl.rainbow.trainer import RainbowTrainer as RainbowTrainer  # noqa: F401
 
 __all__ = ["RainbowTrainer"]
 

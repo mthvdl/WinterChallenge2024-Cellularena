@@ -1,8 +1,15 @@
-# Moved to rl.ppo.trainer.  Re-exported here for backward compatibility.
-from rl.ppo.trainer import PPOTrainer as PPOTrainer  # noqa: F401
+from __future__ import annotations
 
-__all__ = ["PPOTrainer"]
+from pathlib import Path
+from typing import Any, Dict, Optional
 
+from rl.base_bot import RLBot
+from rl.base_trainer import BaseTrainer
+from rl.buffer import AbstractBuffer
+from rl.env_runner import EnvRunner, EnvFactory, EpisodeEndCallback, OpponentSelector
+from rl.logger import TrainingLogger
+from rl.ppo.bot import PPOBot
+from rl.ppo.buffer import PPORolloutBuffer
 
 
 class PPOTrainer(BaseTrainer):
@@ -11,8 +18,7 @@ class PPOTrainer(BaseTrainer):
     Parameters
     ----------
     bot:
-        A :class:`~rl.bots.ppo_bot.PPOBot` instance (``build()`` is called
-        automatically if the network has not been built yet).
+        A :class:`~rl.ppo.bot.PPOBot` instance.
     opponent:
         The opponent bot used during training.
     env_factory:
@@ -21,15 +27,14 @@ class PPOTrainer(BaseTrainer):
     n_envs:
         Number of parallel environments.
     n_steps_per_rollout:
-        Number of environment steps **per environment** to collect before
-        each gradient update.  Total rollout size = ``n_envs * n_steps_per_rollout``.
+        Steps per environment per rollout.  Total rollout size =
+        ``n_envs * n_steps_per_rollout``.
     learning_agent:
         Name of the PettingZoo agent being trained (default: ``"player_0"``).
     logger:
         :class:`~rl.logger.TrainingLogger` instance.
     eval_env_factory:
-        Separate factory for evaluation environments.  Falls back to
-        *env_factory* if not provided.
+        Separate factory for evaluation environments.
     checkpoint_dir:
         Directory for periodic checkpoint files.
     eval_interval:
@@ -84,23 +89,12 @@ class PPOTrainer(BaseTrainer):
             raise TypeError(f"PPOTrainer requires a PPOBot; got {type(bot).__name__}.")
         self.n_steps_per_rollout = int(n_steps_per_rollout)
 
-    # ------------------------------------------------------------------
-    # BaseTrainer interface
-    # ------------------------------------------------------------------
-
     def create_buffer(self) -> PPORolloutBuffer:
         capacity = self.n_envs * self.n_steps_per_rollout
         return PPORolloutBuffer(capacity=capacity)
 
-    def collect_experience(
-        self,
-        runner: EnvRunner,
-        buffer: AbstractBuffer,
-    ) -> int:
-        """Fill *buffer* with one rollout and compute GAE advantages.
-
-        Returns the total number of transitions collected.
-        """
+    def collect_experience(self, runner: EnvRunner, buffer: AbstractBuffer) -> int:
+        """Fill *buffer* with one rollout and compute GAE advantages."""
         assert isinstance(buffer, PPORolloutBuffer)
         buffer.clear()
 
@@ -108,7 +102,6 @@ class PPOTrainer(BaseTrainer):
         runner.collect(buffer, self.n_steps_per_rollout)
         self.bot.train_mode()
 
-        # Compute a bootstrap value for each env from the post-rollout obs.
         bootstrap_values: Dict[int, float] = {}
         for env_idx, indices in buffer._per_env_order.items():
             if not indices:
