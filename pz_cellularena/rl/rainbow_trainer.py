@@ -1,22 +1,8 @@
-"""Game-agnostic Rainbow trainer.
+# Moved to rl.bots.dqn_bot.  Re-exported here for backward compatibility.
+from rl.bots.dqn_bot import RainbowTrainer as RainbowTrainer  # noqa: F401
 
-This trainer is algorithm-specific but game-agnostic: it depends only on
-PettingZoo env factories, RLBot interfaces, and generic buffer abstractions.
-"""
-from __future__ import annotations
+__all__ = ["RainbowTrainer"]
 
-from pathlib import Path
-from typing import Dict, Optional
-
-import numpy as np
-
-from rl.base_bot import RLBot
-from rl.base_trainer import BaseTrainer
-from rl.buffer import AbstractBuffer
-from rl.env_runner import EnvRunner, EnvFactory, EpisodeEndCallback, OpponentSelector
-from rl.logger import TrainingLogger
-from rl.n_step import NStepBufferWrapper
-from rl.prioritized_replay import PrioritizedReplayBuffer
 
 
 class RainbowTrainer(BaseTrainer):

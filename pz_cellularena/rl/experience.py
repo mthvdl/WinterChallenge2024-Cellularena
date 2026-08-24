@@ -96,3 +96,9 @@ class RolloutBatch:
     # shape: (B, *action_shape) bool — next-state action masks (for Double DQN).
     # None when unavailable.
     next_action_masks: Optional[np.ndarray] = None
+
+    # GAE advantages (B,) — on-policy algorithms only (PPO, A2C).
+    advantages: Optional[np.ndarray] = None
+
+    # TD(lambda) returns = advantages + values (B,) — on-policy algorithms only.
+    returns: Optional[np.ndarray] = None
