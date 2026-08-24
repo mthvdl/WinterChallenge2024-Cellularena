@@ -22,10 +22,10 @@ before any self-play, using the pre-filled expert replay buffer.
 
 ```bash
 # List available games
-ls -d pz_cellularena/games/*/
+ls -d rl_coding_game/games/*/
 
 # List existing experiments
-ls -d pz_cellularena/experiments/*/ 2>/dev/null || echo "(none)"
+ls -d rl_coding_game/experiments/*/ 2>/dev/null || echo "(none)"
 ```
 
 Then ask the user:
@@ -58,7 +58,7 @@ If the user asks to do anything that would break rule 1–5, **refuse and explai
 
 ```bash
 # 1. Confirm the seed store exists
-test -f pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store/replay.duckdb \
+test -f rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store/replay.duckdb \
     && echo "seed store OK" || echo "MISSING — rebuild required"
 
 # 2. Confirm the experiment name is NOT "offline_pretrain"
@@ -73,7 +73,7 @@ echo "Experiment name: <EXPERIMENT_NAME>"   # must differ from offline_pretrain
 
 ## Key Concept
 
-- `pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store` is the
+- `rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store` is the
   **immutable expert buffer** — read-only data asset, never a training target.
 - `--seed-replay-dir` copies it into the **new experiment's own** replay_store on
   first launch only. Re-runs skip the copy automatically.
@@ -81,21 +81,21 @@ echo "Experiment name: <EXPERIMENT_NAME>"   # must differ from offline_pretrain
 
 ## Preconditions
 
-- Workspace root contains `pz_cellularena/`.
+- Workspace root contains `rl_coding_game/`.
 - Conda env `cellularena` exists.
-- Game `<GAME>` has `pz_cellularena/games/<GAME>/factories.py` with `make_env`.
+- Game `<GAME>` has `rl_coding_game/games/<GAME>/factories.py` with `make_env`.
 - Expert buffer exists:
-  `pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store/replay.duckdb`
+  `rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store/replay.duckdb`
   If missing → run **Rebuilding the Expert Buffer** below first.
 
 ## Standard Paths
 
 | Path | Role |
 |------|------|
-| `pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store/` | **Immutable seed** — never written to by training |
-| `pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/replay_store/` | Working copy — created by `--seed-replay-dir`, augmented by self-play |
-| `pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/runs/` | TensorBoard logs + checkpoints |
-| `pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/league_pool/` | Self-play snapshots |
+| `rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store/` | **Immutable seed** — never written to by training |
+| `rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/replay_store/` | Working copy — created by `--seed-replay-dir`, augmented by self-play |
+| `rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/runs/` | TensorBoard logs + checkpoints |
+| `rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/league_pool/` | Self-play snapshots |
 
 ## Inputs To Ask Or Confirm
 
@@ -107,11 +107,11 @@ echo "Experiment name: <EXPERIMENT_NAME>"   # must differ from offline_pretrain
 ## Command — Offline Training
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <EXPERIMENT_NAME> \
-    --seed-replay-dir pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store \
+    --seed-replay-dir rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store \
     --total-steps <TOTAL_STEPS> \
     --n-envs <N_ENVS> \
     --self-play
@@ -136,21 +136,21 @@ Only run if `offline_pretrain/replay_store/replay.duckdb` is missing or corrupt.
 
 ### Step 1 — Download top-player games
 
-Requires `CG_SESSION` set in `pz_cellularena/env.secret.sh`.
+Requires `CG_SESSION` set in `rl_coding_game/env.secret.sh`.
 
 ```bash
-source pz_cellularena/env.secret.sh
+source rl_coding_game/env.secret.sh
 
-conda run -n cellularena python pz_cellularena/download_games.py \
+conda run -n cellularena python rl_coding_game/download_games.py \
     --top 100 --per-player 35 --delay 0.5 --keep-samples 0 --no-verify
 ```
 
 ### Step 2 — Prefill the expert buffer
 
 ```bash
-conda run -n cellularena python pz_cellularena/prefill_replay_buffer.py \
+conda run -n cellularena python rl_coding_game/prefill_replay_buffer.py \
     --adapter games.<GAME>.offline_replay_adapter:create_adapter \
-    --storage-dir pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store \
+    --storage-dir rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store \
     --capacity 500000 \
     --clear-first
 ```
@@ -158,7 +158,7 @@ conda run -n cellularena python pz_cellularena/prefill_replay_buffer.py \
 ## Locating the Best Checkpoint After Training
 
 ```bash
-find pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/runs \
+find rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/runs \
     -name "checkpoint_*.pt" | xargs ls -lt | head -5
 ```
 
@@ -166,7 +166,7 @@ find pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/runs \
 
 ```bash
 conda run -n cellularena tensorboard \
-    --logdir pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/runs --port 6006
+    --logdir rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/runs --port 6006
 ```
 
 ## What To Report Back
@@ -188,19 +188,19 @@ already be uploaded to Azure Files before launching.
 ### Step 0 — Upload the seed replay store (first time only)
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/upload_offline_pretrain.ps1 \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/upload_offline_pretrain.ps1 \
     -StorageAccount "$AZURE_STORAGE_ACCT"
 ```
 
 Or, to upload from WSL:
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 KEY=$(az storage account keys list -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" \
     --query '[0].value' -o tsv | tr -d '\r')
 az storage file upload-batch \
-    --source pz_cellularena/experiments/<GAME>/offline_pretrain/replay_store \
+    --source rl_coding_game/experiments/<GAME>/offline_pretrain/replay_store \
     --destination experiments \
     --destination-path "<GAME>/offline_pretrain/replay_store" \
     --account-name "$AZURE_STORAGE_ACCT" \
@@ -211,8 +211,8 @@ az storage file upload-batch \
 ### Step 1 — Launch the ACA job
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x <EXPERIMENT_NAME> \
     -i "$TRAIN_IMAGE" \
     -s <TOTAL_STEPS> \

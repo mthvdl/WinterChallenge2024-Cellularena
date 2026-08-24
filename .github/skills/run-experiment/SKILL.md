@@ -15,8 +15,8 @@ Use this skill to start or resume a self-play training experiment.
 ## Step 0 — Detect Current Game and Confirm
 
 ```bash
-ls -d pz_cellularena/games/*/
-ls -d pz_cellularena/experiments/*/ 2>/dev/null || echo "(none)"
+ls -d rl_coding_game/games/*/
+ls -d rl_coding_game/experiments/*/ 2>/dev/null || echo "(none)"
 ```
 
 Confirm game with the user before proceeding.
@@ -27,7 +27,7 @@ Confirm game with the user before proceeding.
 
 > Will this experiment run **locally** (WSL, your machine) or **remotely** (Azure Container Apps GPU)?
 
-- **LOCAL** → conda + WSL, experiment artifacts in `pz_cellularena/experiments/`
+- **LOCAL** → conda + WSL, experiment artifacts in `rl_coding_game/experiments/`
 - **REMOTE** → ACA GPU job, artifacts in Azure Files at `/mnt/data/experiments/`
 
 ---
@@ -46,7 +46,7 @@ Run from the **repo root** in bash.
 ### A) Cold start (fresh experiment)
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <EXPERIMENT_NAME> \
@@ -59,7 +59,7 @@ conda run -n cellularena python pz_cellularena/train_rainbow.py \
 ### B) Warm replay start (reuse existing replay buffer)
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <EXPERIMENT_NAME> \
@@ -72,7 +72,7 @@ conda run -n cellularena python pz_cellularena/train_rainbow.py \
 ### C) Resume from checkpoint
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <EXPERIMENT_NAME> \
@@ -91,7 +91,7 @@ test -f <CHECKPOINT_PATH> && echo "exists" || echo "MISSING"
 
 ```bash
 conda run -n cellularena tensorboard \
-    --logdir pz_cellularena/experiments/<GAME> --port 6006
+    --logdir rl_coding_game/experiments/<GAME> --port 6006
 ```
 
 ---
@@ -103,7 +103,7 @@ Prerequisites: `aca-setup` ran, image is pushed to ACR.
 Run from the **repo root** in bash after sourcing env settings:
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 ```
 
 ### Inputs
@@ -117,8 +117,8 @@ source pz_cellularena/env.sh
 ### A) Cold start
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x <EXPERIMENT_NAME> \
     -i "$TRAIN_IMAGE" \
     -s <TOTAL_STEPS> \
@@ -129,8 +129,8 @@ source pz_cellularena/env.sh
 ### B) Resume from checkpoint
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x <EXPERIMENT_NAME> \
     -i "$TRAIN_IMAGE" \
     -s <TOTAL_STEPS> \

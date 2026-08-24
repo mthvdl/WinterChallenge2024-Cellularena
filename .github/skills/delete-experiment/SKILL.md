@@ -13,8 +13,8 @@ name with the user before any destructive action.
 ## Step 0 — Detect Current Game and Confirm
 
 ```bash
-ls -d pz_cellularena/games/*/
-ls -d pz_cellularena/experiments/*/ 2>/dev/null || echo "(none)"
+ls -d rl_coding_game/games/*/
+ls -d rl_coding_game/experiments/*/ 2>/dev/null || echo "(none)"
 ```
 
 Ask the user:
@@ -26,7 +26,7 @@ Ask the user:
 
 ## Step 1 — Ask: LOCAL or REMOTE?
 
-> Is this experiment stored **locally** (`pz_cellularena/experiments/`) or **remotely** (Azure Files)?
+> Is this experiment stored **locally** (`rl_coding_game/experiments/`) or **remotely** (Azure Files)?
 
 ---
 
@@ -35,7 +35,7 @@ Ask the user:
 ### A) Check the experiment exists
 
 ```bash
-test -d "pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>" \
+test -d "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>" \
     && echo "exists" || echo "not found"
 ```
 
@@ -54,13 +54,13 @@ pkill -f "train_rainbow.py.*<EXPERIMENT_NAME>"
 ### D) Delete the experiment directory
 
 ```bash
-rm -rf "pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>"
+rm -rf "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>"
 ```
 
 ### E) Confirm deletion
 
 ```bash
-test -d "pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>" \
+test -d "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>" \
     && echo "still exists" || echo "deleted"
 ```
 
@@ -71,7 +71,7 @@ test -d "pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>" \
 ### Prerequisites
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 KEY=$(az storage account keys list \
     -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" \
     --query '[0].value' -o tsv | tr -d '\r')
@@ -122,5 +122,5 @@ az storage directory exists \
 **Never delete:**
 
 - `offline_pretrain` experiment (immutable expert seed — refuse and warn)
-- `pz_cellularena/experiments/<GAME>` or `experiments` themselves
-- `pz_cellularena/data/games/<GAME>/replays`
+- `rl_coding_game/experiments/<GAME>` or `experiments` themselves
+- `rl_coding_game/data/games/<GAME>/replays`

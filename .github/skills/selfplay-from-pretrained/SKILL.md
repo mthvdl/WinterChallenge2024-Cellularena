@@ -23,10 +23,10 @@ buffer** (no expert data contamination).
 
 ```bash
 # List available games
-ls -d pz_cellularena/games/*/
+ls -d rl_coding_game/games/*/
 
 # List existing experiments to find the offline training experiment
-ls -d pz_cellularena/experiments/*/ 2>/dev/null || echo "(none)"
+ls -d rl_coding_game/experiments/*/ 2>/dev/null || echo "(none)"
 ```
 
 Then ask the user:
@@ -48,21 +48,21 @@ Then ask the user:
 
 ## Preconditions
 
-- Workspace root contains `pz_cellularena/`.
+- Workspace root contains `rl_coding_game/`.
 - Conda env `cellularena` exists.
-- Game `<GAME>` has `pz_cellularena/games/<GAME>/factories.py` with `make_env`.
+- Game `<GAME>` has `rl_coding_game/games/<GAME>/factories.py` with `make_env`.
 - A checkpoint `.pt` file exists from a completed or ongoing offline training run.
 
 ## Standard Paths
 
-- Offline experiment root: `pz_cellularena/experiments/<GAME>/<OFFLINE_EXP>/`
+- Offline experiment root: `rl_coding_game/experiments/<GAME>/<OFFLINE_EXP>/`
 - Checkpoint pattern: `.../<OFFLINE_EXP>/runs/rainbow_<timestamp>/checkpoints/checkpoint_<step>.pt`
-- New experiment root: `pz_cellularena/experiments/<GAME>/<SELFPLAY_EXP>/`
+- New experiment root: `rl_coding_game/experiments/<GAME>/<SELFPLAY_EXP>/`
 
 ## Step 1 — Locate the Best Checkpoint
 
 ```bash
-find pz_cellularena/experiments/<GAME>/<OFFLINE_EXP>/runs \
+find rl_coding_game/experiments/<GAME>/<OFFLINE_EXP>/runs \
     -name "checkpoint_*.pt" | xargs ls -lt | head -5
 ```
 
@@ -76,7 +76,7 @@ test -f <CHECKPOINT_PATH> && echo "exists" || echo "MISSING"
 ## Step 2 — Launch Self-Play
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <SELFPLAY_EXP> \
@@ -106,11 +106,11 @@ very first launch.
 To resume from the experiment's *own* latest checkpoint instead:
 
 ```bash
-conda run -n cellularena python pz_cellularena/train_rainbow.py \
+conda run -n cellularena python rl_coding_game/train_rainbow.py \
     --env-factory games.<GAME>.factories:make_env \
     --game <GAME> \
     --experiment-name <SELFPLAY_EXP> \
-    --resume-checkpoint pz_cellularena/experiments/<GAME>/<SELFPLAY_EXP>/runs/rainbow_<timestamp>/checkpoints/checkpoint_<step>.pt \
+    --resume-checkpoint rl_coding_game/experiments/<GAME>/<SELFPLAY_EXP>/runs/rainbow_<timestamp>/checkpoints/checkpoint_<step>.pt \
     --total-steps <TOTAL_STEPS> \
     --n-envs <N_ENVS> \
     --self-play
@@ -121,7 +121,7 @@ conda run -n cellularena python pz_cellularena/train_rainbow.py \
 ## TensorBoard — Compare Offline vs Self-Play
 
 ```bash
-conda run -n cellularena tensorboard --logdir pz_cellularena/experiments/<GAME> --port 6006
+conda run -n cellularena tensorboard --logdir rl_coding_game/experiments/<GAME> --port 6006
 ```
 
 ## What To Report Back
@@ -150,7 +150,7 @@ training job, or manually).
 ### Locate the checkpoint path in Azure Files
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 KEY=$(az storage account keys list -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" \
     --query '[0].value' -o tsv | tr -d '\r')
 az storage file list \
@@ -164,8 +164,8 @@ az storage file list \
 ### Launch the ACA job
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x <SELFPLAY_EXP> \
     -i "$TRAIN_IMAGE" \
     -s <TOTAL_STEPS> \

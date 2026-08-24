@@ -23,8 +23,8 @@ pointing at that directory.
 **Local (WSL)**: Use the bash script. It sources `env.sh` for defaults.
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/tensorboard_local.sh -a "$AZURE_STORAGE_ACCT"
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/tensorboard_local.sh -a "$AZURE_STORAGE_ACCT"
 ```
 
 A PowerShell version (`tensorboard_local.ps1`) also exists for Windows hosts.
@@ -46,7 +46,7 @@ A PowerShell version (`tensorboard_local.ps1`) also exists for Windows hosts.
 ### View a single experiment
 
 ```bash
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a <STORAGE_ACCOUNT_NAME> \
     -x exp_001_baseline
 ```
@@ -54,14 +54,14 @@ A PowerShell version (`tensorboard_local.ps1`) also exists for Windows hosts.
 ### View all experiments for the game (compare runs)
 
 ```bash
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a <STORAGE_ACCOUNT_NAME>
 ```
 
 ### Keep syncing during live training
 
 ```bash
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a <STORAGE_ACCOUNT_NAME> \
     -x exp_001_baseline \
     -w
@@ -83,7 +83,7 @@ Local sync directory: `/tmp/cellularena_tb/`
 ## Manual Sync (without TensorBoard)
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 KEY=$(az storage account keys list -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" --query '[0].value' -o tsv)
 az storage file download-batch \
     --source experiments \

@@ -11,7 +11,7 @@ Use this skill to launch TensorBoard for any training experiment, local or remot
 
 ## Step 0 — Ask: LOCAL or REMOTE experiment?
 
-> Are you viewing a **local** experiment (artifacts in `pz_cellularena/experiments/`) or a **remote** experiment (artifacts on Azure Files from an ACA job)?
+> Are you viewing a **local** experiment (artifacts in `rl_coding_game/experiments/`) or a **remote** experiment (artifacts on Azure Files from an ACA job)?
 
 ---
 
@@ -23,7 +23,7 @@ Artifacts are already on disk. Just launch TensorBoard.
 
 ```bash
 conda run -n cellularena tensorboard \
-    --logdir pz_cellularena/experiments/<GAME>/<EXPERIMENT_NAME>/runs \
+    --logdir rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>/runs \
     --port 6006
 ```
 
@@ -31,7 +31,7 @@ conda run -n cellularena tensorboard \
 
 ```bash
 conda run -n cellularena tensorboard \
-    --logdir pz_cellularena/experiments/<GAME> \
+    --logdir rl_coding_game/experiments/<GAME> \
     --port 6006
 ```
 
@@ -55,8 +55,8 @@ The script syncs them locally then launches TensorBoard.
 ### View a single experiment
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a "$AZURE_STORAGE_ACCT" \
     -x <EXPERIMENT_NAME>
 ```
@@ -64,16 +64,16 @@ source pz_cellularena/env.sh
 ### Compare all experiments for the game
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a "$AZURE_STORAGE_ACCT"
 ```
 
 ### Keep syncing during live training
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/tensorboard_local.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/tensorboard_local.sh \
     -a "$AZURE_STORAGE_ACCT" \
     -x <EXPERIMENT_NAME> \
     -w
@@ -82,7 +82,7 @@ source pz_cellularena/env.sh
 ### Manual sync without launching TensorBoard
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 KEY=$(az storage account keys list -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" \
     --query '[0].value' -o tsv | tr -d '\r')
 az storage file download-batch \

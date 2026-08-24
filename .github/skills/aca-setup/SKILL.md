@@ -18,7 +18,7 @@ for GPU training via Azure Container Apps.
 to pick up configured defaults.
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 ```
 
 ---
@@ -61,31 +61,31 @@ experiments/
 Run from the repo root:
 
 ```bash
-./pz_cellularena/remote/aca/setup_infra.sh
+./rl_coding_game/remote/aca/setup_infra.sh
 ```
 
 Optional overrides:
 
 ```bash
-./pz_cellularena/remote/aca/setup_infra.sh -l westeurope -p cellularena
+./rl_coding_game/remote/aca/setup_infra.sh -l westeurope -p cellularena
 ```
 
 The script prints the ACR login server and storage account name at the end.
-**Update `pz_cellularena/env.sh`** with the printed `AZURE_STORAGE_ACCT`, `AZURE_ACR_NAME`, and `AZURE_ACR_SERVER` values.
+**Update `rl_coding_game/env.sh`** with the printed `AZURE_STORAGE_ACCT`, `AZURE_ACR_NAME`, and `AZURE_ACR_SERVER` values.
 
 ---
 
 ## Step 2 — Build and Push the Training Image
 
-Run from the **repo root** (not inside `pz_cellularena/`):
+Run from the **repo root** (not inside `rl_coding_game/`):
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/push_image.sh -a "$AZURE_ACR_NAME" -g "$AZURE_RG"
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/push_image.sh -a "$AZURE_ACR_NAME" -g "$AZURE_RG"
 ```
 
-This builds the image using `pz_cellularena/remote/aca/Dockerfile` with the
-full repo as context, installs deps from `pz_cellularena/requirements.txt`
+This builds the image using `rl_coding_game/remote/aca/Dockerfile` with the
+full repo as context, installs deps from `rl_coding_game/requirements.txt`
 (plus CUDA torch), then pushes to ACR.
 
 **Rebuild the image whenever `requirements.txt` or project code changes.**
@@ -100,8 +100,8 @@ The full image reference to pass to training jobs:
 ## What To Report Back
 
 - Resource group name
-- Storage account name → update `AZURE_STORAGE_ACCT` in `pz_cellularena/env.sh`
-- ACR login server → update `AZURE_ACR_NAME` and `AZURE_ACR_SERVER` in `pz_cellularena/env.sh`
+- Storage account name → update `AZURE_STORAGE_ACCT` in `rl_coding_game/env.sh`
+- ACR login server → update `AZURE_ACR_NAME` and `AZURE_ACR_SERVER` in `rl_coding_game/env.sh`
 - Confirm the GPU workload profile exists:
   ```bash
   az containerapp env workload-profile show \

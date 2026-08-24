@@ -17,7 +17,7 @@ the `Consumption-GPU-NC8as-T4` workload profile.
 **Local (WSL)**: Run bash scripts from the **repo root**. Source `env.sh` first:
 
 ```bash
-source pz_cellularena/env.sh
+source rl_coding_game/env.sh
 ```
 
 ---
@@ -46,8 +46,8 @@ source pz_cellularena/env.sh
 ### Cold start (new experiment)
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x exp_001_baseline \
     -i "$TRAIN_IMAGE" \
     -s 500000 \
@@ -58,8 +58,8 @@ source pz_cellularena/env.sh
 ### Resume from checkpoint
 
 ```bash
-source pz_cellularena/env.sh
-./pz_cellularena/remote/aca/run_job.sh \
+source rl_coding_game/env.sh
+./rl_coding_game/remote/aca/run_job.sh \
     -x exp_001_baseline \
     -i "$TRAIN_IMAGE" \
     -s 500000 \
