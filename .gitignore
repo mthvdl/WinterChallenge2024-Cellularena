@@ -19,3 +19,5 @@ rl_coding_game/.env
 rl_coding_game/env.secret.sh
 rl_coding_game/replays/
 rl_coding_game/remote/aca/ca-bundle.crt
+/rl_coding_game/Games/cellularena/experiments/
+/rl_coding_game/Viewer/node_modules/
