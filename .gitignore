@@ -14,8 +14,8 @@ best.pkl
 last_generation_fitness.txt
 JulienMain.java
 
-# Python / pz_cellularena
-pz_cellularena/.env
-pz_cellularena/env.secret.sh
-pz_cellularena/replays/
-pz_cellularena/remote/aca/ca-bundle.crt
+# Python / rl_coding_game
+rl_coding_game/.env
+rl_coding_game/env.secret.sh
+rl_coding_game/replays/
+rl_coding_game/remote/aca/ca-bundle.crt

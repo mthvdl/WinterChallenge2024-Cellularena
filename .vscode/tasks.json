@@ -8,7 +8,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"Remove-Item -LiteralPath \"c:\\git_clones\\WinterChallenge2024-Cellularena\\pz_cellularena\\cellularena\" -Recurse -Force"
+				"Remove-Item -LiteralPath \"c:\\git_clones\\WinterChallenge2024-Cellularena\\rl_coding_game\\cellularena\" -Recurse -Force"
 			],
 			"isBackground": false
 		},
@@ -20,9 +20,9 @@
 				"-m",
 				"pytest",
 				"-q",
-				"pz_cellularena/test_env.py",
-				"pz_cellularena/test_replay.py",
-				"pz_cellularena/test_prioritized_replay.py"
+				"rl_coding_game/test_env.py",
+				"rl_coding_game/test_replay.py",
+				"rl_coding_game/test_prioritized_replay.py"
 			],
 			"isBackground": false
 		},
@@ -33,7 +33,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"python pz_cellularena/test_env.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python pz_cellularena/test_replay.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python pz_cellularena/test_prioritized_replay.py"
+				"python rl_coding_game/test_env.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python rl_coding_game/test_replay.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; python rl_coding_game/test_prioritized_replay.py"
 			],
 			"isBackground": false
 		},
@@ -69,9 +69,9 @@
 				"-m",
 				"pytest",
 				"-q",
-				"pz_cellularena/test_env.py",
-				"pz_cellularena/test_replay.py",
-				"pz_cellularena/test_prioritized_replay.py"
+				"rl_coding_game/test_env.py",
+				"rl_coding_game/test_replay.py",
+				"rl_coding_game/test_prioritized_replay.py"
 			],
 			"isBackground": false
 		},
@@ -82,7 +82,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"cd pz_cellularena; python train_rainbow.py --env-factory games.cellularena.factories:make_env --game cellularena --experiment-name smoke_dqn_cutover --total-steps 128 --n-envs 1 --buffer-size 512 --replay-min-size 32 --batch-size 8 --collect-steps-per-env 1 --updates-per-iteration 1 --eval-interval 256 --self-play --reset-replay"
+				"cd rl_coding_game; python train_rainbow.py --env-factory games.cellularena.factories:make_env --game cellularena --experiment-name smoke_dqn_cutover --total-steps 128 --n-envs 1 --buffer-size 512 --replay-min-size 32 --batch-size 8 --collect-steps-per-env 1 --updates-per-iteration 1 --eval-interval 256 --self-play --reset-replay"
 			],
 			"isBackground": false
 		},
@@ -143,9 +143,9 @@
 				"-m",
 				"pytest",
 				"-q",
-				"pz_cellularena/test_env.py",
-				"pz_cellularena/test_replay.py",
-				"pz_cellularena/test_prioritized_replay.py"
+				"rl_coding_game/test_env.py",
+				"rl_coding_game/test_replay.py",
+				"rl_coding_game/test_prioritized_replay.py"
 			],
 			"isBackground": false
 		},
@@ -158,7 +158,7 @@
 				"-n",
 				"cellularena",
 				"python",
-				"pz_cellularena/train_rainbow.py",
+				"rl_coding_game/train_rainbow.py",
 				"--env-factory",
 				"games.cellularena.factories:make_env",
 				"--game",
@@ -193,7 +193,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"Get-Item \"pz_cellularena/experiments/cellularena/smoke_dqn_cutover/replay_store/replay.duckdb\" | Select-Object FullName,Length; Get-Item \"pz_cellularena/experiments/cellularena/smoke_dqn_cutover/replay_store/per_index.sqlite\" | Select-Object FullName,Length"
+				"Get-Item \"rl_coding_game/experiments/cellularena/smoke_dqn_cutover/replay_store/replay.duckdb\" | Select-Object FullName,Length; Get-Item \"rl_coding_game/experiments/cellularena/smoke_dqn_cutover/replay_store/per_index.sqlite\" | Select-Object FullName,Length"
 			],
 			"isBackground": false
 		},
@@ -228,7 +228,7 @@
 				"-n",
 				"cellularena",
 				"python",
-				"pz_cellularena/train_rainbow.py",
+				"rl_coding_game/train_rainbow.py",
 				"--env-factory",
 				"games.cellularena.factories:make_env",
 				"--game",

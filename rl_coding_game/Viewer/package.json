@@ -1,0 +1,17 @@
+{
+  "name": "cellularena-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "pixi.js": "^5.3.12"
+  },
+  "devDependencies": {
+    "@types/pixi.js": "^5.0.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "scripts": {
+    "build": "node ./node_modules/esbuild/bin/esbuild ts/main.ts --bundle --global-name=CellularenaViewer --outfile=view/viewer.js --loader:.jpg=dataurl",
+    "watch": "node ./node_modules/esbuild/bin/esbuild ts/main.ts --bundle --global-name=CellularenaViewer --outfile=view/viewer.js --watch"
+  }
+}

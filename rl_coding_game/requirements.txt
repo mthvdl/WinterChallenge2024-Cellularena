@@ -1,0 +1,12 @@
+# pip-installable dependencies shared between the local conda env and the Docker image.
+# Keep in sync with environment.yml.
+# NOTE: torch and torchvision are intentionally absent — they require a CUDA-specific
+#       install URL in Docker and are provided by conda (pytorch channel) locally.
+pettingzoo>=1.24.3
+gymnasium>=0.29.1
+requests>=2.31
+duckdb>=1.1.0
+tensorboard>=2.17
+numpy>=1.24
+pygame>=2.5
+ray[rllib]>=2.45,<2.46

@@ -1,6 +1,6 @@
-# rl_coding_game – Generic CodingGame RL Framework
+# rl_coding_game - Generic CodingGame RL Framework
 
-A framework for training RL agents on any two-player [CodingGame](https://www.codingame.com) puzzle, using [PettingZoo](https://pettingzoo.farama.org/) environments, Rainbow DQN or PPO, and self-play with league management.
+A framework for training RL agents on any two-player [CodingGame](https://www.codingame.com) puzzle, using [PettingZoo](https://pettingzoo.farama.org/) environments and Ray RLlib Rainbow DQN or SAC.
 
 **Cellularena** (CodingGame Winter Challenge 2024) is the reference implementation. Adding a new game takes ~1 hour of boilerplate + however long it takes to implement the game engine.
 
@@ -19,10 +19,10 @@ conda env create -f environment.yml
 conda activate cellularena
 
 # 2. Scaffold the new game (only the URL is required)
-python scaffold_game.py --url https://www.codingame.com/contests/fall-challenge-2024
+python -m Core.cli.scaffold_game --url https://www.codingame.com/contests/fall-challenge-2024
 
-# 3. Download game rules as text (helps you implement the engine)
-python download_rules.py --url https://www.codingame.com/contests/fall-challenge-2024
+# 3. Download game rules as Markdown (helps you implement the engine)
+python -m Core.cli.download_rules --url https://www.codingame.com/contests/fall-challenge-2024
 
 # 4. Download expert replays (requires CG_SESSION in .env — see below)
 python download_games.py --url https://www.codingame.com/contests/fall-challenge-2024
@@ -30,14 +30,12 @@ python download_games.py --url https://www.codingame.com/contests/fall-challenge
 # 5. Implement the game engine  (see scaffold TODOs in games/<GAME>/game/game.py)
 
 # 6. Run smoke tests
-python test_<GAME>.py
+python -m pytest Games/<GAME>/engine/tests
 
-# 7. Train
-python train_rainbow.py \
-    --env-factory games.<GAME>.factories:make_env \
-    --game <GAME> \
-    --experiment-name exp_001 \
-    --total-steps 500000 --n-envs 4 --self-play --reset-replay
+# 7. Train a generated game's Ray algorithm
+python -m Games.<GAME>.ray.dqn.train --iterations 10 --checkpoint-dir experiments/<GAME>/dqn
+# Or use the continuous-action SAC adapter
+python -m Games.<GAME>.ray.sac.train --iterations 10 --checkpoint-dir experiments/<GAME>/sac
 ```
 
 ### CodingGame session cookie (for downloading replays)
@@ -56,10 +54,10 @@ python train_rainbow.py \
 | "Train on a new CodingGame" | `new-game` — full onboarding: scaffold → rules → replays → implement → train |
 | "Download replays for my game" | `download-replays` — leaderboard or single-game replay download |
 | "Validate my game engine" | `validate-game` — replay-driven engine correctness check |
-| "Run / resume an experiment" | `run-experiment` — local or ACA GPU training |
+| "Run / resume an experiment" | `run-experiment` — local Ray training |
 | "Pretrain from expert replays" | `offline-training` — offline imitation pretraining |
 | "Start self-play from checkpoint" | `selfplay-from-pretrained` — bootstrap self-play from offline model |
-| "View TensorBoard" | `tensorboard` — local or remote ACA metrics |
+| "View TensorBoard" | `tensorboard` — local Ray metrics |
 
 ---
 
@@ -87,20 +85,20 @@ python export_episode_replay.py --seed 123 --policy greedy
 python replay_transform.py --mode to-viewer --input replays/selfplay_greedy_123.json --output replays/selfplay_greedy_123.viewer.json
 
 # Build and run the standalone TS viewer
-cd games/cellularena/viewer
+cd Viewer
 npm install
 npm run build
-cd ../../..
+cd ..
 python -m http.server 8000
 
 # Then open:
-# http://localhost:8000/games/cellularena/viewer/view/index.html
-# and load ../../../../replays/selfplay_greedy_123.viewer.json
+# http://localhost:8000/Viewer/view/index.html
+# and load ../replays/selfplay_greedy_123.viewer.json
 
 # Runtime conversion mode (no .viewer.json files written):
 # 1) start the integrated UI + API server
-python viewer_server.py --port 8000
-# 2) open http://localhost:8000/games/cellularena/viewer/view/index.html
+python Viewer/viewer_server.py --port 8000
+# 2) open http://localhost:8000/view/index.html
 # 3) load a raw replay (codingame_*.json or core_*.json) via "Load Replay"
 #    The replay is simulated in-memory and converted to viewer JSON in HTTP response only.
 
@@ -108,70 +106,24 @@ python viewer_server.py --port 8000
 python download_games.py --no-verify --username YOU --password PW
 python download_games.py --game-id 12345678 --no-verify
 
-# Prefill replay storage from offline core replays (game-specific adapter + generic tool)
-python prefill_replay_buffer.py --adapter games.cellularena.offline_replay_adapter:create_adapter --glob "data/games/cellularena/replays/core_*.json" --storage-dir replay_store --capacity 200000
-
-# Train Rainbow with the generic PettingZoo trainer entrypoint
-python train_rainbow.py --env-factory games.cellularena.factories:make_env --total-steps 200000 --n-envs 4 --self-play --replay-dir replay_store
-
-# Start experiment-centric training layout automatically
-python train_rainbow.py --env-factory games.cellularena.factories:make_env --experiment-name exp_001 --total-steps 200000 --n-envs 4 --self-play
-
-# Start a brand-new experiment (fresh logs + fresh replay)
-python train_rainbow.py --env-factory games.cellularena.factories:make_env --total-steps 200000 --n-envs 4 --self-play --run-dir runs/exp_001 --replay-dir replay_store_exp_001 --reset-replay
-
-# Resume from a checkpoint while continuing global-step numbering
-python train_rainbow.py --env-factory games.cellularena.factories:make_env --total-steps 400000 --n-envs 4 --self-play --run-dir runs/exp_001_resume --replay-dir replay_store_exp_001 --resume-checkpoint runs/exp_001/checkpoints/checkpoint_0002000000.pt
-
-# Monitor training in TensorBoard (from project root)
-tensorboard --logdir runs --port 6006
+# Monitor local Ray experiments in TensorBoard (from project root)
+tensorboard --logdir Games/cellularena/experiments --port 6006
 ```
 
-## Azure VM remote workflow
-
-The repository includes a small remote-ops toolkit under `remote/azure/`:
+## Local Ray workflow
 
 ```bash
-# Local Windows setup for Azure provisioning
-powershell -ExecutionPolicy Bypass -File remote/azure/install_azure_cli.ps1
-powershell -ExecutionPolicy Bypass -File remote/azure/create_ssh_key.ps1 -KeyPath $HOME/.ssh/cellularena_azure_ed25519
-
-# Then authenticate and create the VM from Windows
-powershell -ExecutionPolicy Bypass -File remote/azure/provision_gpu_vm.ps1 -SubscriptionId <SUBSCRIPTION_ID>
-
-# On the Azure VM, from rl_coding_game/
-bash remote/azure/bootstrap_vm.sh
-
-# Launch training on the VM
-bash remote/azure/run_training.sh smoke_remote 200000 --reset-replay
-
-# Start TensorBoard on the VM, bound to localhost only
-bash remote/azure/start_tensorboard.sh
+python -m Games.cellularena.ray.dqn.train --iterations 10 \
+  --checkpoint-dir Games/cellularena/experiments/dqn
+tensorboard --logdir Games/cellularena/experiments --port 6006
 ```
 
-From Windows, use the PowerShell helpers to connect and open a tunnel:
-
-```powershell
-./remote/azure/connect_vm.ps1 -HostName <PUBLIC_IP> -UserName azureuser -KeyPath C:\keys\cellularena.pem
-./remote/azure/open_tensorboard_tunnel.ps1 -HostName <PUBLIC_IP> -UserName azureuser -KeyPath C:\keys\cellularena.pem
-```
-
-Then open `http://localhost:6006` locally.
-
-Provisioning defaults are parameterized so you can change Azure region, VM SKU,
-resource group, VM name, and SSH key path without editing scripts.
-
-Iterative training workflow:
-- Use a unique `--run-dir` per experiment so TensorBoard can compare runs side-by-side.
-- Keep `--replay-dir` if you want a warm start from prior experience; add `--reset-replay` for a cold start.
-- Use `--resume-checkpoint` to continue model and optimizer state from a prior checkpoint.
-- If checkpoint filename does not follow `checkpoint_<step>.pt`, pass `--resume-global-step` explicitly.
+For frozen league opponents, add `--frozen-opponent`, repeat `--opponent-policy`
+and pair each with `--opponent-checkpoint`; only the learner policy is updated.
 
 ---
 
 ## Project layout
-
-```
 
 Recommended data layout for iterative RL work:
 
@@ -301,27 +253,19 @@ Sparse, terminal-only:
 
 ---
 
-## Generic Rainbow framework (game-agnostic core)
+## Generic Ray framework (game-agnostic core)
 
-The RL stack under `rl/` is structured so algorithm code is reusable across
-different two-agent PettingZoo games:
+The Ray stack under `Core/` is reusable across two-agent PettingZoo games:
 
-- `rl/rainbow/bot.py` – Rainbow/QR-DQN bot (NoisyNet + dueling + PER update logic)
-- `rl/rainbow_trainer.py` – generic off-policy training loop
-- `rl/n_step.py` – reusable n-step transition wrapper
-- `rl/prioritized_replay.py` – DuckDB/SQLite PER storage backend
-- `prefill_replay_buffer.py` – generic offline replay prefill CLI via adapter interface
+- `Core/ray_env.py` – environment registration helpers
+- `Core/ray_config.py` – configuration overrides
+- `Core/ray_policies.py` – shared and frozen policy setup
+- `Core/ray_training.py` – checkpointing and metric callbacks
 
-Game-specific replay parsing stays outside `rl/`:
+To port to a new PettingZoo game, add:
 
-- `games/cellularena/offline_replay_adapter.py` – converts `core_*.json` into transitions
-- `games/cellularena/factories.py` – environment factory hook for generic training scripts
-
-To port to a new PettingZoo game, keep algorithm modules unchanged and add:
-
-1. A game package env factory (for `--env-factory module:func`).
-2. A replay adapter implementing `rl.offline_adapter.ReplayTransitionAdapter`
-  if you want offline prefill from historical games.
+1. A game package environment wrapper and factory.
+2. DQN and SAC config/train modules under `Games/<GAME>/ray/`.
 
 ---
 

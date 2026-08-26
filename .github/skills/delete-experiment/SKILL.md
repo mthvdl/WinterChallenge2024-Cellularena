@@ -1,126 +1,46 @@
 ---
 name: delete-experiment
-description: "Use when the user asks to delete, remove, clean up, purge, or reset an experiment folder — either locally (WSL) or remotely from Azure Files. Stops any running trainer first. Asks whether the experiment is local or remote before proceeding."
+description: "Use when the user asks to delete, remove, clean up, purge, or reset a local Ray experiment folder."
 ---
 
 # Delete Experiment
 
-Use this skill to safely remove an experiment. Always confirm game + experiment
-name with the user before any destructive action.
+This workflow is local-only. Remote ACA experiment cleanup is retired.
 
----
+## Confirm
 
-## Step 0 — Detect Current Game and Confirm
+Ask the user to confirm the exact local experiment path before deleting it.
+Do not delete the reserved offline seed or unrelated experiments.
 
-```bash
-ls -d rl_coding_game/games/*/
-ls -d rl_coding_game/experiments/*/ 2>/dev/null || echo "(none)"
-```
+## Stop Training
 
-Ask the user:
-> The game is **`<GAME>`**, experiment to delete: **`<EXPERIMENT_NAME>`**. Confirm?
-
-**Do not proceed until the user confirms.**
-
----
-
-## Step 1 — Ask: LOCAL or REMOTE?
-
-> Is this experiment stored **locally** (`rl_coding_game/experiments/`) or **remotely** (Azure Files)?
-
----
-
-## ── LOCAL ──────────────────────────────────────────────────────────────────
-
-### A) Check the experiment exists
+From the repository root, inspect matching Ray processes:
 
 ```bash
-test -d "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>" \
-    && echo "exists" || echo "not found"
+pgrep -af 'Games\.<GAME>\.ray\.(dqn|sac)\.train' || true
 ```
 
-### B) Find a live trainer
+Stop only the confirmed experiment process. Prefer a targeted process stop;
+never use a broad kill pattern when other training runs are active.
+
+## Delete
+
+After confirmation and once training has stopped:
 
 ```bash
-pgrep -af 'train_rainbow.py' | grep '<EXPERIMENT_NAME>' || echo "(no matching process)"
+test -d <EXPERIMENT_DIR> && rm -rf -- <EXPERIMENT_DIR>
+test ! -e <EXPERIMENT_DIR>
 ```
 
-### C) Stop the live trainer (if any, after user confirms)
+The path may be a game experiment directory under
+`rl_coding_game/Games/<GAME>/experiments/` or a Ray result/checkpoint directory
+explicitly supplied by the user.
+
+## Verify
+
+Confirm the directory is absent and that no matching Ray trainer remains:
 
 ```bash
-pkill -f "train_rainbow.py.*<EXPERIMENT_NAME>"
+test ! -e <EXPERIMENT_DIR>
+pgrep -af 'Games\.<GAME>\.ray\.(dqn|sac)\.train' || true
 ```
-
-### D) Delete the experiment directory
-
-```bash
-rm -rf "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>"
-```
-
-### E) Confirm deletion
-
-```bash
-test -d "rl_coding_game/experiments/<GAME>/<EXPERIMENT_NAME>" \
-    && echo "still exists" || echo "deleted"
-```
-
----
-
-## ── REMOTE (Azure Files) ─────────────────────────────────────────────────
-
-### Prerequisites
-
-```bash
-source rl_coding_game/env.sh
-KEY=$(az storage account keys list \
-    -n "$AZURE_STORAGE_ACCT" -g "$AZURE_RG" \
-    --query '[0].value' -o tsv | tr -d '\r')
-```
-
-### A) Confirm the experiment directory exists in Azure Files
-
-```bash
-az storage directory exists \
-    --share-name experiments \
-    --name "<GAME>/<EXPERIMENT_NAME>" \
-    --account-name "$AZURE_STORAGE_ACCT" \
-    --account-key "$KEY" \
-    --query exists -o tsv
-```
-
-### B) Delete the experiment directory recursively
-
-```bash
-az storage remove \
-    --account-name "$AZURE_STORAGE_ACCT" \
-    --account-key "$KEY" \
-    --share-name experiments \
-    --path "<GAME>/<EXPERIMENT_NAME>" \
-    --recursive
-```
-
-### C) Confirm deletion
-
-```bash
-az storage directory exists \
-    --share-name experiments \
-    --name "<GAME>/<EXPERIMENT_NAME>" \
-    --account-name "$AZURE_STORAGE_ACCT" \
-    --account-key "$KEY" \
-    --query exists -o tsv
-# Expected: false
-```
-
----
-
-## Safety Checks (both flavours)
-
-- User must confirm **game + experiment name** in Step 0 before proceeding.
-- The resolved path must be exactly under `experiments/<GAME>/` — never a parent.
-- Check for a running trainer (local) before deleting.
-
-**Never delete:**
-
-- `offline_pretrain` experiment (immutable expert seed — refuse and warn)
-- `rl_coding_game/experiments/<GAME>` or `experiments` themselves
-- `rl_coding_game/data/games/<GAME>/replays`

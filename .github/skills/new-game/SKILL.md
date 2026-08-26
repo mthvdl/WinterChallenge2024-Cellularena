@@ -11,17 +11,25 @@ Use this skill to onboard a new CodingGame into the rl_coding_game framework end
 
 ## Step 0 — Gather inputs interactively
 
-Ask the user **only** what you don't already know. The only required input is the game URL.
+Ask the user **only** what you don't already know.
+
+Required inputs:
+- Game URL
+- Conda environment name to create/use for this workflow
 
 **Ask:**
 > What is the CodingGame URL for the game you want to train on?
 > (e.g. `https://www.codingame.com/contests/fall-challenge-2024`)
+
+> What conda environment name should I create/use for this game?
+> (e.g. `cellularena`)
 
 Then derive everything else automatically:
 - **Puzzle slug** = last path segment of the URL (e.g. `fall-challenge-2024`)
 - **Game name** = puzzle slug with `-` replaced by `_` (e.g. `fall_challenge_2024`)
 
 If the user already provided a URL in their message, use it directly — do not ask again.
+If the user already provided the conda env name, use it directly — do not ask again.
 
 **Only ask if the user wants to override defaults:**
 - Local game name (default: derived from URL)
@@ -29,13 +37,61 @@ If the user already provided a URL in their message, use it directly — do not 
 
 ---
 
-## Step 1 — Scaffold the game
+## Step 1 — Create or reuse conda environment
+
+```bash
+cd /path/to/repo/rl_coding_game
+conda env list
+```
+
+If `<CONDA_ENV>` does not exist:
+
+```bash
+cd /path/to/repo/rl_coding_game
+conda create -n <CONDA_ENV> python=3.11 -y
+conda run -n <CONDA_ENV> python -m pip install -r requirements.txt
+```
+
+Persist the chosen env by scaffolding with `--conda-env <CONDA_ENV>` (this updates `rl_coding_game/games/<GAME>/env.sh` with `CONDA_ENV=<CONDA_ENV>`).
+
+---
+
+## Step 2 — Download game rules first (Markdown)
+
+This is the first game-onboarding action after env setup. Run it before scaffolding or replay download.
 
 ```bash
 cd /path/to/repo
-conda run -n cellularena python rl_coding_game/scaffold_game.py \
-    --puzzle-id <PUZZLE_ID> \
+conda run -n <CONDA_ENV> python rl_coding_game/download_rules.py \
+    --url <GAME_URL> \
     --game <GAME>
+```
+
+Rules are saved to:
+- `rl_coding_game/games/<GAME>/rules.md` (primary, implementation notes)
+- `rl_coding_game/data/games/<GAME>/rules.md` (shared data copy)
+- `rl_coding_game/data/games/<GAME>/rules.html` (raw)
+- `rl_coding_game/data/games/<GAME>/rules.txt` (plain text)
+
+Before writing `game.py`, read `rl_coding_game/games/<GAME>/rules.md` and extract these sections explicitly:
+- Endgame rules (termination + victory/defeat)
+- Order of actions / turn resolution order
+- Constraints (input limits, time, map/turn limits)
+
+Use those as acceptance criteria for engine behavior.
+
+> If the API fails, open the game page in a browser and copy the rules manually.
+
+---
+
+## Step 3 — Scaffold the game
+
+```bash
+cd /path/to/repo
+conda run -n <CONDA_ENV> python rl_coding_game/scaffold_game.py \
+    --puzzle-id <PUZZLE_ID> \
+    --game <GAME> \
+    --conda-env <CONDA_ENV>
 ```
 
 This creates:
@@ -45,24 +101,10 @@ This creates:
 
 ---
 
-## Step 2 — Download game rules
+## Step 4 — Download expert replays
 
 ```bash
-conda run -n cellularena python rl_coding_game/download_rules.py \
-    --puzzle-id <PUZZLE_ID> \
-    --game <GAME>
-```
-
-Rules are saved to `rl_coding_game/data/games/<GAME>/rules.txt` (plain text) and `.html`.
-
-> If the API fails, open the game page in a browser and copy the rules manually.
-
----
-
-## Step 3 — Download expert replays
-
-```bash
-conda run -n cellularena python rl_coding_game/download_games.py \
+conda run -n <CONDA_ENV> python rl_coding_game/download_games.py \
     --game <GAME> \
     --puzzle-id <PUZZLE_ID> \
     --top 10 \
@@ -74,9 +116,15 @@ Replays are saved to `rl_coding_game/data/games/<GAME>/replays/`.
 
 ---
 
-## Step 4 — Implement the game engine (manual step)
+## Step 5 — Implement the game engine (manual step)
 
 The user must implement the game logic. Guide them to fill in:
+
+Non-negotiable architecture rules:
+- The game engine must match the CodingGame protocol exactly for input and output semantics.
+- Do not put ML features, engineered channels, normalization, or symmetry transforms inside the engine.
+- Observation feature engineering belongs in the obs mapper.
+- Action decoding/formatting to protocol commands belongs in an action mapper/runtime adapter.
 
 ### 4a. Core game engine
 File: `rl_coding_game/games/<GAME>/game/game.py`
@@ -84,7 +132,7 @@ File: `rl_coding_game/games/<GAME>/game/game.py`
 Key methods to implement:
 - `reset()` — set up initial board/state
 - `step(actions)` — apply both players' actions, advance turn, return `(done, [r0, r1])`
-- `get_observation(player_idx)` — return raw state for building observations
+- `get_observation(player_idx)` — return raw protocol-faithful state only (no agent feature engineering)
 - `init_from_replay(global_data)` — initialise from replay global data
 
 Reference: `games/cellularena/game/game.py`
@@ -99,7 +147,7 @@ Reference: `games/cellularena/game/replay_loader.py`
 
 ---
 
-## Step 5 — Implement observation and action spaces
+## Step 6 — Implement observation and action spaces
 
 File: `rl_coding_game/games/<GAME>/env.py`
 
@@ -116,7 +164,45 @@ Key methods to implement:
 
 ---
 
-## Step 6 — Implement offline replay adapter (optional but recommended)
+## Step 6b — Customise the observation mapper (required)
+
+File: `rl_coding_game/games/<GAME>/bots/obs_mapper.py`
+
+The scaffold generates a `<GAME>ObsMapper` that inherits from `FlatObsMapper` (flatten + concatenate all Dict values in sorted key order).
+
+Override `obs_to_tensor()` here when you need:
+- Per-channel normalisation or clipping
+- Spatial encoding / feature selection before the network
+- A different flat shape than the default flatten
+
+```python
+from rl.obs_mapper import FlatObsMapper
+
+class MyGameObsMapper(FlatObsMapper):
+    def obs_to_tensor(self, obs, device):
+        # custom preprocessing …
+        return super().obs_to_tensor(obs, device)
+```
+
+Reference: `games/cellularena/bots/obs_mapper.py`
+
+The agent must always run through this mapper in both:
+- Learning (training rollouts and updates)
+- Inference (runtime/CodingGame loop)
+
+## Step 6c — Add action mapper (required)
+
+File: `rl_coding_game/games/<GAME>/bots/action_mapper.py`
+
+Implement action conversion from agent output to protocol commands:
+- Input: model action tensor/array
+- Output: exact protocol commands (`GROW ...`, `SPORE ...`, `WAIT`)
+
+Reference: `games/cellularena/bots/action_mapper.py`
+
+---
+
+## Step 7 — Implement offline replay adapter (optional but recommended)
 
 File: `rl_coding_game/games/<GAME>/offline_replay_adapter.py`
 
@@ -130,45 +216,42 @@ Reference: `games/cellularena/offline_replay_adapter.py`
 
 ---
 
-## Step 7 — Validate the game engine
+## Step 8 — Validate the game engine
 
 ```bash
-conda run -n cellularena python rl_coding_game/validate_engine.py \
+conda run -n <CONDA_ENV> python rl_coding_game/validate_engine.py \
     --game <GAME>
 ```
 
 > If `validate_engine.py` doesn't support your game yet, run the smoke tests:
 
 ```bash
-conda run -n cellularena python rl_coding_game/test_<GAME>.py
+conda run -n <CONDA_ENV> python rl_coding_game/test_<GAME>.py
 ```
 
 Expected output: all tests pass.
 
 ---
 
-## Step 8 — (Optional) Offline pretraining
+## Step 9 — (Optional) Offline pretraining
 
-Use the `offline-training` skill to pretrain from expert replays before self-play.
+Offline pretraining is deferred during the Ray migration. The supported first
+run is online Ray RLlib self-play.
 
 ---
 
-## Step 9 — Run first self-play experiment
+## Step 10 — Run first self-play experiment
 
 ```bash
-conda run -n cellularena python rl_coding_game/train_rainbow.py \
-    --env-factory games.<GAME>.factories:make_env \
-    --game <GAME> \
-    --experiment-name exp_001_baseline \
-    --total-steps 500000 \
-    --n-envs 4 \
-    --self-play \
-    --reset-replay
+conda run -n <CONDA_ENV> python -m Games.<GAME>.ray.dqn.train \
+    --iterations 1 \
+    --num-env-runners 0 \
+    --checkpoint-dir Games/<GAME>/experiments/exp_001_baseline
 ```
 
-Artifacts: `rl_coding_game/experiments/<GAME>/exp_001_baseline/`
+Increase `--iterations` and `--num-env-runners` after the smoke run passes.
 
-Use the `run-experiment` skill for full local/remote training workflows.
+Use the `run-experiment` skill for the full local Ray training workflow.
 
 ---
 
@@ -177,4 +260,7 @@ Use the `run-experiment` skill for full local/remote training workflows.
 - Keep `MAX_TURNS` in `game.py` slightly larger than the actual game limit to avoid off-by-one issues
 - Use sparse rewards (+1/-1 at terminal) — dense rewards can slow learning
 - Add action masking if the game has legal-move constraints (see `env_runner.py` for masking hooks)
-- For PPO instead of Rainbow DQN, use `--trainer rl.ppo.trainer:PPOTrainer` in train_rainbow.py
+- Keep engine and model concerns separate:
+    - Engine: protocol-faithful game simulation only
+    - Obs mapper: game obs -> agent obs
+    - Action mapper: agent action -> protocol command strings

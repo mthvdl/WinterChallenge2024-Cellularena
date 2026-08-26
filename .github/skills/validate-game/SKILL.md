@@ -36,7 +36,15 @@ ls rl_coding_game/data/games/<GAME>/replays/core_*.json | head -5
 
 # Game module must exist
 ls rl_coding_game/games/<GAME>/game/game.py
+
+# Rules markdown must exist (implementation source of truth)
+ls rl_coding_game/games/<GAME>/rules.md
 ```
+
+Read `rl_coding_game/games/<GAME>/rules.md` before validating and verify these are reflected in `game.py` behavior:
+- Endgame rules and victory/defeat conditions
+- Order of actions / turn resolution order
+- Constraints (turn limits, map limits, legal action constraints)
 
 ---
 
