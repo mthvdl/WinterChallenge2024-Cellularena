@@ -12,8 +12,6 @@ import importlib
 _EXPORTS = {
     "RLBot": "rl.base_bot",
     "BaseNetwork": "rl.base_network",
-    "ObsMapper": "rl.obs_mapper",
-    "FlatObsMapper": "rl.obs_mapper",
     "BaseTrainer": "rl.base_trainer",
     "AbstractBuffer": "rl.buffer",
     "RolloutBuffer": "rl.buffer",
@@ -33,8 +31,6 @@ _EXPORTS = {
 __all__ = [
     "RLBot",
     "BaseNetwork",
-    "ObsMapper",
-    "FlatObsMapper",
     "BaseTrainer",
     "AbstractBuffer",
     "RolloutBuffer",

@@ -56,7 +56,6 @@ Running the game scaffold should provide, without manually wiring Ray internals:
 - [x] Configure two policy IDs: a trainable learner and a frozen opponent.
 - [x] Load the frozen policy from a checkpoint and keep only the learner in `policies_to_train`.
 - [x] Add deterministic episode-level opponent selection for league self-play.
-- [ ] Port `CellularenaObsMapper` and the game-specific network into custom RLlib `RLModule` implementations for Rainbow DQN and SAC after the stock algorithms work.
 - [ ] Port checkpoint replay generation and experiment directory conventions.
 - [x] Configure stable Ray metric reporting and TensorBoard-compatible output.
 - [x] Preserve a project TensorBoard command that opens local Ray experiment results.

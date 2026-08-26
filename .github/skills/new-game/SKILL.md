@@ -96,6 +96,9 @@ conda run -n <CONDA_ENV> python rl_coding_game/scaffold_game.py \
 
 This creates:
 - `rl_coding_game/games/<GAME>/` — env, factories, offline adapter, game engine stubs
+- `rl_coding_game/games/<GAME>/ray/dqn/feature_builder.py` — no-op DQN feature-builder class
+- `rl_coding_game/games/<GAME>/ray/sac/feature_builder.py` — no-op SAC feature-builder class
+- `rl_coding_game/games/<GAME>/policy/action_mask.py` — no-op discrete action-mask-builder class
 - `rl_coding_game/data/games/<GAME>/replays/` — empty replay store
 - `rl_coding_game/test_<GAME>.py` — smoke tests
 
@@ -123,7 +126,8 @@ The user must implement the game logic. Guide them to fill in:
 Non-negotiable architecture rules:
 - The game engine must match the CodingGame protocol exactly for input and output semantics.
 - Do not put ML features, engineered channels, normalization, or symmetry transforms inside the engine.
-- Observation feature engineering belongs in the obs mapper.
+- Observation feature engineering belongs in an algorithm-specific feature builder.
+- Legal-action mask construction belongs in an algorithm-independent action-mask builder.
 - Action decoding/formatting to protocol commands belongs in an action mapper/runtime adapter.
 
 ### 4a. Core game engine
@@ -164,33 +168,66 @@ Key methods to implement:
 
 ---
 
-## Step 6b — Customise the observation mapper (required)
+## Step 6b — Create algorithm-specific observation feature builders
 
-File: `rl_coding_game/games/<GAME>/bots/obs_mapper.py`
+Create one feature-builder class for every supported algorithm:
 
-The scaffold generates a `<GAME>ObsMapper` that inherits from `FlatObsMapper` (flatten + concatenate all Dict values in sorted key order).
+- `rl_coding_game/games/<GAME>/ray/dqn/feature_builder.py`
+- `rl_coding_game/games/<GAME>/ray/sac/feature_builder.py`
 
-Override `obs_to_tensor()` here when you need:
-- Per-channel normalisation or clipping
+For now, only discrete action spaces are supported. Do not scaffold or onboard
+games whose action space is continuous.
+
+Each class must initially be a no-op placeholder with the correct interface:
+
+```python
+class DQNFeatureBuilder:
+    def build(self, raw_observation):
+        """Return the raw observation unchanged until customized."""
+        return raw_observation
+```
+
+The SAC class should use the same interface. Do not add feature engineering to
+the scaffold implementation. The classes are extension points for:
+
+- Per-channel normalization or clipping
 - Spatial encoding / feature selection before the network
 - A different flat shape than the default flatten
 
-```python
-from rl.obs_mapper import FlatObsMapper
-
-class MyGameObsMapper(FlatObsMapper):
-    def obs_to_tensor(self, obs, device):
-        # custom preprocessing …
-        return super().obs_to_tensor(obs, device)
-```
-
-Reference: `games/cellularena/bots/obs_mapper.py`
-
-The agent must always run through this mapper in both:
+The agent must always run through the selected algorithm's feature builder in both:
 - Learning (training rollouts and updates)
 - Inference (runtime/CodingGame loop)
 
-## Step 6c — Add action mapper (required)
+## Step 6c — Create the action-mask builder
+
+Create an algorithm-independent placeholder:
+
+File: `rl_coding_game/games/<GAME>/policy/action_mask.py`
+
+```python
+import numpy as np
+
+
+class ActionMaskBuilder:
+    def __init__(self, action_count):
+        self.action_count = action_count
+
+    def build(self, game, player_idx):
+        """Return an all-valid mask until customized for the game."""
+        return np.ones(self.action_count, dtype=np.float32)
+```
+
+The scaffold must not invent game-specific legality rules. The placeholder
+class only establishes where the implementation belongs. Once implemented,
+the same mask builder must be used by:
+
+- The PettingZoo/RLlib wrapper during training
+- The exported CodingGame inference bot
+
+For discrete games, the mask length must equal `action_space.n`, and the policy
+must apply it to action logits before categorical sampling.
+
+## Step 6d — Add action mapper (required)
 
 File: `rl_coding_game/games/<GAME>/bots/action_mapper.py`
 

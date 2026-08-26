@@ -1,4 +1,4 @@
-"""Run stock SAC on Cellularena through its explicit continuous adapter."""
+"""Run discrete SAC on Cellularena with masked categorical actions."""
 from __future__ import annotations
 
 import argparse
@@ -28,7 +28,7 @@ def main() -> None:
 	if args.num_env_runners is not None:
 		overrides.setdefault("run", {})["num_env_runners"] = args.num_env_runners
 
-	register_env("cellularena_ray_sac", make_env_creator(continuous_actions=True))
+	register_env("cellularena_ray_sac", make_env_creator())
 	ray.init(ignore_reinit_error=True, include_dashboard=False)
 	algorithm = build_config(
 		"cellularena_ray_sac",

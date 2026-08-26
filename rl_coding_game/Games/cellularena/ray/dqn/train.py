@@ -10,6 +10,7 @@ from Core.ray_env import register_env
 from Core.ray_config import load_overrides
 from Core.ray_policies import load_policy_from_checkpoint
 from Core.ray_training import print_metrics, train
+from Games.cellularena.ray.dqn.feature_builder import DQNFeatureBuilder
 from Games.cellularena.ray.dqn.config import build_config
 from Games.cellularena.ray.env_wrapper import make_env_creator
 
@@ -28,7 +29,7 @@ def main() -> None:
     if args.num_env_runners is not None:
         overrides.setdefault("run", {})["num_env_runners"] = args.num_env_runners
 
-    register_env("cellularena_ray", make_env_creator())
+    register_env("cellularena_ray", make_env_creator(feature_builder_factory=DQNFeatureBuilder))
     ray.init(ignore_reinit_error=True, include_dashboard=False)
     algorithm = build_config(
         overrides=overrides,

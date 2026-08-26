@@ -82,8 +82,11 @@ def _ray_wrapper(game: str) -> str:
         from gymnasium import spaces
         from pettingzoo import ParallelEnv
 
+        from Core.action_mask import ACTION_MASK_KEY, OBSERVATIONS_KEY
         from Games.{game}.factories import make_env
         from Games.{game}.engine.env import {cls}Env
+        from Games.{game}.policy.action_mask import {cls}ActionMaskBuilder
+        from Games.{game}.ray.dqn.feature_builder import {cls}DQNFeatureBuilder
 
 
         class {cls}RayWrapper(ParallelEnv):
@@ -91,15 +94,17 @@ def _ray_wrapper(game: str) -> str:
 
             def __init__(self, env: {cls}Env) -> None:
                 self.env = env
+                self.feature_builder = {cls}DQNFeatureBuilder()
+                self.action_mask_builder = {cls}ActionMaskBuilder()
                 self.possible_agents = list(env.possible_agents)
                 self.agents = []
                 self.metadata = env.metadata
 
             def observation_space(self, agent: str) -> spaces.Space:
-                return spaces.Dict({
-                    "obs": self.env.observation_space(agent),
-                    "action_mask": spaces.Box(0, 1, shape=(self.env.action_space(agent).n,), dtype=np.int8)
-                })
+                return spaces.Dict({{
+                    OBSERVATIONS_KEY: self.env.observation_space(agent),
+                    ACTION_MASK_KEY: spaces.Box(0, 1, shape=(self.env.action_space(agent).n,), dtype=np.float32)
+                }})
 
             def action_space(self, agent: str) -> spaces.Space:
                 return self.env.action_space(agent)
@@ -108,13 +113,15 @@ def _ray_wrapper(game: str) -> str:
                 return observation
 
             def action_mask(self, agent: str) -> np.ndarray:
-                if not hasattr(self.env, "action_mask"):
-                    return np.ones(self.env.action_space(agent).n, dtype=np.int8)
-                return np.asarray(self.env.action_mask(agent), dtype=np.int8).reshape(-1)
+                return self.action_mask_builder.build(
+                    self.env._game,
+                    self.env._agent_to_idx[agent],
+                    self.env.action_space(agent).n,
+                )
 
             def _wrap(self, agent: str, observation: Any) -> Dict[str, Any]:
-                return {{"obs": self.transform_observation(agent, observation),
-                        "action_mask": self.action_mask(agent)}}
+                return {{OBSERVATIONS_KEY: self.feature_builder.build(observation),
+                    ACTION_MASK_KEY: self.action_mask(agent)}}
 
             def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None):
                 observations, infos = self.env.reset(seed=seed, options=options)
@@ -137,6 +144,43 @@ def _ray_wrapper(game: str) -> str:
                 from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
                 return ParallelPettingZooEnv({cls}RayWrapper(make_env()))
             return env_creator
+    ''')
+
+
+def _feature_builder(game: str, algorithm: str) -> str:
+    cls = _class(game)
+    return textwrap.dedent(f'''\
+        """{algorithm.upper()} feature customisation for {game}."""
+        from __future__ import annotations
+
+        from typing import Any
+
+
+        class {cls}{algorithm.upper()}FeatureBuilder:
+            """Identity feature builder until the game's encoding is implemented."""
+
+            def build(self, raw_observation: Any) -> Any:
+                return raw_observation
+    ''')
+
+
+def _action_mask_builder(game: str) -> str:
+    cls = _class(game)
+    return textwrap.dedent(f'''\
+        """Discrete action-mask customisation for {game}."""
+        from __future__ import annotations
+
+        from typing import Any
+
+        import numpy as np
+
+        from Core.action_mask import ActionMaskBuilder
+
+
+        class {cls}ActionMaskBuilder(ActionMaskBuilder):
+            """Return an all-legal mask until game legality is implemented."""
+
+            pass
     ''')
 
 
@@ -392,7 +436,7 @@ def _game_engine(game: str) -> str:
         - Implement reset() to set up a fresh game state
         - Implement step(actions) to advance one turn; return (done, [r0, r1])
         - Implement get_observation(player_idx) to return protocol-faithful raw state only
-        - Keep ML feature engineering out of the engine (put it in bots/obs_mapper.py)
+        - Keep ML feature engineering out of the engine; the standard RL wrapper handles observation flattening
         - Keep protocol command formatting out of the engine (put it in bots/action_mapper.py)
         - Define constants: MAX_TURNS, any grid/board dimensions
         """
@@ -548,48 +592,8 @@ def _bots_init(game: str) -> str:
         """Game-specific bot customisations for {game}."""
 
         from .action_mapper import {cls}ActionMapper
-        from .obs_mapper import {cls}ObsMapper
 
-        __all__ = ["{cls}ObsMapper", "{cls}ActionMapper"]
-    ''')
-
-
-def _bots_obs_mapper(game: str) -> str:
-    cls = _class(game)
-    return textwrap.dedent(f'''\
-        """
-        {cls} observation mapper.
-
-        Converts raw {game} Dict observations into flat float tensors for the
-        neural network.  Start here to add domain-specific preprocessing:
-          - Per-channel normalisation or clipping
-          - Spatial encoding / pooling for grid observations
-          - Feature selection or dimensionality reduction
-
-        Reference implementation: cellularena/engine/obs_mapper.py
-        """
-        from __future__ import annotations
-
-        from typing import Any
-
-        import numpy as np
-        import torch
-        from gymnasium import spaces
-
-        from Core.obs_mapper import FlatObsMapper, ObsMapper
-
-
-        class {cls}ObsMapper(FlatObsMapper):
-            """{cls} obs mapper — override obs_to_tensor() to customise.
-
-            The default implementation flattens all Dict obs values in sorted
-            key order, identical to :class:`rl.obs_mapper.FlatObsMapper`.
-
-            TODO: replace or extend this once you know your obs layout.
-            """
-
-            # If you keep FlatObsMapper, output_dim() is computed automatically.
-            # Override it here if you change the tensor shape in obs_to_tensor().
+        __all__ = ["{cls}ActionMapper"]
     ''')
 
 
@@ -809,6 +813,11 @@ def scaffold(game: str, puzzle_id: str, conda_env: str, overwrite: bool = False)
         algorithm_dir = game_ray_dir / algorithm
         ensure_dir(algorithm_dir)
         _write(algorithm_dir / "__init__.py", f'"""Ray {algorithm.upper()} integration for {game}."""\n', overwrite)
+        _write(
+            algorithm_dir / "feature_builder.py",
+            _feature_builder(game, algorithm),
+            overwrite,
+        )
         _write(algorithm_dir / "config.py", _ray_config(game, algorithm), overwrite)
         _write(algorithm_dir / "train.py", _ray_train(game, algorithm), overwrite)
     _write(game_engine_dir / "__init__.py", _game_init(game), overwrite)
@@ -821,8 +830,11 @@ def scaffold(game: str, puzzle_id: str, conda_env: str, overwrite: bool = False)
     game_bots_dir = game_dir / "bots"
     ensure_dir(game_bots_dir)
     _write(game_bots_dir / "__init__.py", _bots_init(game), overwrite)
-    _write(game_bots_dir / "obs_mapper.py", _bots_obs_mapper(game), overwrite)
     _write(game_bots_dir / "action_mapper.py", _bots_action_mapper(game), overwrite)
+    game_policy_dir = game_dir / "policy"
+    ensure_dir(game_policy_dir)
+    _write(game_policy_dir / "__init__.py", f'"""Policy customisations for {game}."""\n', overwrite)
+    _write(game_policy_dir / "action_mask.py", _action_mask_builder(game), overwrite)
 
     # Games/<game>/experiments/ and Games/<game>/deploy/
     ensure_dir(game_dir / "experiments")
@@ -855,10 +867,7 @@ Next steps
 4. Implement the observation space in:
     Games/{game}/engine/env.py           ← observation_space, action_space, _observe
 
-4b. Customise the observation mapper (required, used in learning + inference):
-    Games/{game}/bots/obs_mapper.py      ← game obs -> agent obs
-
-4c. Implement the action mapper (required):
+4b. Implement the action mapper (required):
     Games/{game}/bots/action_mapper.py   ← agent action -> protocol commands
 
 5. Implement the offline adapter:
