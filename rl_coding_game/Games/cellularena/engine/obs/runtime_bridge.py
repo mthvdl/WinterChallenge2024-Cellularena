@@ -7,8 +7,8 @@ from typing import Any, Dict
 import numpy as np
 import torch
 
-from Games.cellularena.bots.action_adapter import iterative_policy_masking_to_slot_actions
-from Games.cellularena.bots.obs_mapper import CellularenaObsMapper
+from Games.cellularena.engine.action_adapter import iterative_policy_masking_to_slot_actions
+from Games.cellularena.engine.obs_mapper import CellularenaObsMapper
 from Games.cellularena.engine.game import Game
 
 

@@ -145,7 +145,7 @@ while env.agents:
 ## Export trained bot to CodingGame
 
 ```bash
-python export_to_codingame.py \
+python -m Core.cli.export_to_codingame \
     --checkpoint experiments/<GAME>/<EXP>/checkpoints/checkpoint_<step>.pt \
     --output bot_<GAME>.py
 ```
@@ -161,7 +161,7 @@ python export_to_codingame.py \
 | `download_games.py` | Download replays from CodingGame API (any puzzle) |
 | `Games/<GAME>/ray/dqn/train.py` | Stock RLlib Rainbow DQN entrypoint |
 | `Games/<GAME>/ray/sac/train.py` | Stock RLlib SAC entrypoint |
-| `export_to_codingame.py` | Export trained network as a CodingGame bot |
+| `Core/cli/export_to_codingame.py` | Export trained network as a CodingGame bot |
 | `validate_engine.py` | Engine accuracy checker (cellularena; extend per game) |
 | `replay_transform.py` | CodingGame → core and core → viewer format conversion |
 | `project_paths.py` | Canonical path conventions for experiments and data |
@@ -184,7 +184,7 @@ python export_to_codingame.py \
 | Start DQN training | `python -m Games.<GAME>.ray.dqn.train --iterations 10 --checkpoint-dir Games/<GAME>/experiments/dqn` |
 | Start SAC training | `python -m Games.<GAME>.ray.sac.train --iterations 10 --checkpoint-dir Games/<GAME>/experiments/sac` |
 | View TensorBoard | `tensorboard --logdir experiments/<GAME> --port 6006` |
-| Export bot | `python export_to_codingame.py --checkpoint <PATH> --output bot.py` |
+| Export bot | `python -m Core.cli.export_to_codingame --checkpoint <PATH> --output bot.py` |
 
 ---
 

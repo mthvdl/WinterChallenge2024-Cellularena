@@ -128,7 +128,7 @@ python Viewer/viewer_server.py --port 8000
 |---|---|
 | `games/cellularena/env.py` | PettingZoo `ParallelEnv` |
 | `games/cellularena/factories.py` | `make_env()` factory |
-| `games/cellularena/bots/obs_mapper.py` | `CellularenaObsMapper` — override to preprocess obs before the network |
+| `games/cellularena/engine/obs_mapper.py` | `CellularenaObsMapper` — override to preprocess obs before the network |
 | `games/cellularena/offline_replay_adapter.py` | Converts core replays → RL transitions |
 | `games/cellularena/game/game.py` | All game logic, rules, replay API |
 | `games/cellularena/game/grid.py` | Grid, Tile, Protein |

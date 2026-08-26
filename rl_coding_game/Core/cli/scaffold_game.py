@@ -566,7 +566,7 @@ def _bots_obs_mapper(game: str) -> str:
           - Spatial encoding / pooling for grid observations
           - Feature selection or dimensionality reduction
 
-        Reference implementation: cellularena/bots/obs_mapper.py
+        Reference implementation: cellularena/engine/obs_mapper.py
         """
         from __future__ import annotations
 

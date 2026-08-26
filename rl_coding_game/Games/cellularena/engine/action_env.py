@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from gymnasium import spaces
 
-from Games.cellularena.bots.action_adapter import (
+from Games.cellularena.engine.action_adapter import (
     N_ACTIONS,
     build_action_mask,
     discrete_action_to_slot_actions,

@@ -1,5 +1,5 @@
 from Games.cellularena.factories import make_action_env
-from Games.cellularena.bots.obs_mapper import CellularenaObsMapper
+from Games.cellularena.engine.obs_mapper import CellularenaObsMapper
 from Games.cellularena.ray.env_wrapper import CellularenaRayWrapper
 
 

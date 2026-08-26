@@ -31,7 +31,7 @@ Usage
 
     # my_loader.py
     from Games.cellularena.engine.env import CellularenaEnv
-    from Core.rainbow.bot import DQNBot
+    from Games.cellularena.ray.dqn import DQNBot
 
     env = CellularenaEnv()
     agent = list(env.possible_agents)[0]
@@ -41,7 +41,7 @@ Usage
 
 2. Run the exporter::
 
-    python rl_coding_game/export_to_codingame.py \\
+    python -m Core.cli.export_to_codingame \\
         --bot-script my_loader.py \\
         --output cg_bot.py \\
         [--quantize fp16]          # default; fp16 ≈ 2× smaller than fp32
