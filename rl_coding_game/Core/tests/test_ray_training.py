@@ -50,3 +50,18 @@ def test_train_supports_independent_checkpoint_and_replay_intervals(tmp_path) ->
 		(tmp_path / "checkpoint" / "checkpoint_5", 5),
 	]
 	assert replays == [3]
+
+
+def test_resumed_train_saves_checkpoint_at_final_iteration(tmp_path) -> None:
+	algorithm = FakeAlgorithm()
+
+	train(
+		algorithm,
+		20,
+		tmp_path / "checkpoint",
+		checkpoint_interval=100,
+		start_iteration=300,
+	)
+
+	assert algorithm.calls == 20
+	assert algorithm.saved_to == str(tmp_path / "checkpoint" / "checkpoint_320")

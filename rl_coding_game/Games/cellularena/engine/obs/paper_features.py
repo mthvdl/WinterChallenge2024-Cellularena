@@ -39,17 +39,12 @@ def _next_cell(x: int, y: int, direction: int) -> tuple[int, int]:
     return x + dx, y + dy
 
 
-def encode_observation(observation: dict[str, Any]) -> np.ndarray:
-    """Convert compact game state into the paper-style 12x24x93 vector."""
-    grid = np.asarray(observation["grid"], dtype=np.float32)
-    if grid.ndim != 3 or grid.shape[0] < MAX_H or grid.shape[1] < MAX_W or grid.shape[2] < 17:
-        raise ValueError(f"Expected grid at least (12, 24, 17); got {grid.shape}.")
-    grid = grid[:MAX_H, :MAX_W, -17:].copy()
-    if "storage" not in observation or "self_player_idx" not in observation:
-        raise ValueError("Observation is missing required 'storage'/'self_player_idx' keys.")
-    storage = np.asarray(observation["storage"], dtype=np.float32)
-    self_index = int(np.asarray(observation["self_player_idx"]).reshape(-1)[0])
-    self_index = max(0, min(self_index, 1))
+def _encode_frame(
+    grid: np.ndarray,
+    storage: np.ndarray,
+    self_index: int,
+    turn: float,
+) -> np.ndarray:
     if self_index == 1:
         grid = grid[:, ::-1].copy()
         for channel in (_P0_DIR, _P1_DIR):
@@ -101,7 +96,7 @@ def encode_observation(observation: dict[str, Any]) -> np.ndarray:
     target = features[:, :, _BASE_EMPTY] > 0.5
     target |= features[:, :, _BASE_PROTEIN:_BASE_PROTEIN + 4].any(axis=2)
     for player, block in ((0, _SELF_BLOCK), (1, _OPP_BLOCK)):
-        base = _SELF_ORG if player == self_index else _OPP_ORG
+        base = _SELF_ORG if player == 0 else _OPP_ORG
         features[:, :, block + 18:block + 22] = scaled_storage[player]
         features[:, :, block + 22:block + 26] = income[player]
         features[:, :, block + 27] = features[:, :, base:base + 14].sum()
@@ -112,7 +107,43 @@ def encode_observation(observation: dict[str, Any]) -> np.ndarray:
                 width = 1 if organ < 2 else 4
                 features[:, :, block + 4 + offset:block + 4 + offset + width] = target[:, :, None]
 
-    features[:, :, 92] = np.clip(
-        float(np.asarray(observation.get("turn", 0)).reshape(-1)[0]), 0.0, 1.0
-    )
-    return features.reshape(-1)
+    features[:, :, 92] = np.clip(turn, 0.0, 1.0)
+    return features
+
+
+def encode_observation(
+    observation: dict[str, Any],
+    history_steps: int = 1,
+) -> np.ndarray:
+    """Convert recent compact grid frames into paper-style feature channels."""
+    history_steps = int(history_steps)
+    if history_steps < 1:
+        raise ValueError("history_steps must be >= 1")
+    grid = np.asarray(observation["grid"], dtype=np.float32)
+    required_channels = 17 * history_steps
+    if (
+        grid.ndim != 3
+        or grid.shape[0] < MAX_H
+        or grid.shape[1] < MAX_W
+        or grid.shape[2] < required_channels
+    ):
+        raise ValueError(
+            f"Expected grid at least (12, 24, {required_channels}); got {grid.shape}."
+        )
+    if "storage" not in observation or "self_player_idx" not in observation:
+        raise ValueError("Observation is missing required 'storage'/'self_player_idx' keys.")
+    grid = grid[:MAX_H, :MAX_W, -required_channels:]
+    storage = np.asarray(observation["storage"], dtype=np.float32)
+    self_index = int(np.asarray(observation["self_player_idx"]).reshape(-1)[0])
+    self_index = max(0, min(self_index, 1))
+    turn = float(np.asarray(observation.get("turn", 0)).reshape(-1)[0])
+    frames = [
+        _encode_frame(
+            grid[:, :, frame * 17:(frame + 1) * 17].copy(),
+            storage,
+            self_index,
+            turn,
+        )
+        for frame in range(history_steps)
+    ]
+    return np.concatenate(frames, axis=2).reshape(-1)

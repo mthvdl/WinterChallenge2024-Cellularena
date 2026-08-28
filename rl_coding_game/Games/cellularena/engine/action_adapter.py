@@ -122,6 +122,24 @@ def transform_action_index(action_index: int, player_idx: int) -> int:
     return _action_index_from_channel_and_coord(channel, target)
 
 
+_PLAYER_ONE_ACTION_TRANSFORM = np.asarray(
+    [transform_action_index(action_index, 1) for action_index in range(N_ACTIONS)],
+    dtype=np.int64,
+)
+
+
+def transform_action_values(values: np.ndarray, player_idx: int) -> np.ndarray:
+    """Transform player-relative action values into raw engine coordinates."""
+    values = np.asarray(values).reshape(-1)
+    if values.shape != (N_ACTIONS,):
+        raise ValueError(f"Expected action values shape {(N_ACTIONS,)}, got {values.shape}.")
+    if player_idx == 0:
+        return values.copy()
+    transformed = np.empty_like(values)
+    transformed[_PLAYER_ONE_ACTION_TRANSFORM] = values
+    return transformed
+
+
 def transform_action_mask(mask: np.ndarray, player_idx: int) -> np.ndarray:
     """Return a legal-action mask in the player's local perspective."""
     mask = np.asarray(mask, dtype=bool).reshape(-1)
@@ -130,8 +148,8 @@ def transform_action_mask(mask: np.ndarray, player_idx: int) -> np.ndarray:
     if player_idx == 0:
         return mask.copy()
     transformed = np.zeros_like(mask)
-    for action_index in np.flatnonzero(mask):
-        transformed[transform_action_index(int(action_index), player_idx)] = True
+    action_indices = np.flatnonzero(mask)
+    transformed[_PLAYER_ONE_ACTION_TRANSFORM[action_indices]] = True
     return transformed
 
 

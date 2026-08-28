@@ -6,8 +6,9 @@ from typing import Callable
 from ray.rllib.algorithms.dqn import DQNConfig
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from Core.ray_env import make_multi_agent_replay_buffer
-from Core.ray_config import DQNSettings, RayRunSettings, settings_dict
+from Core.ray_config import DQNSettings, settings_dict
 from Core.ray_policies import policy_setup
+from Games.cellularena.ray.config import resolve_run_and_env_settings
 from Games.cellularena.ray.dqn.modules import DQNNetwork, MaskedDQNTorchRLModule
 
 
@@ -24,19 +25,12 @@ def build_config(
         frozen_opponent, opponent_policy_ids
     )
     values = overrides or {}
-    run = settings_dict(RayRunSettings(num_env_runners=num_env_runners), values.get("run"))
+    run, env_settings = resolve_run_and_env_settings(values, num_env_runners)
     dqn = settings_dict(DQNSettings(), values.get("dqn"))
     config = (
         DQNConfig()
         .rl_module(rl_module_spec=RLModuleSpec(module_class=MaskedDQNTorchRLModule))
-        .environment(env=env_name, env_config={
-            "map_height": run["map_height"],
-            "map_width": run["map_width"],
-            "wall_ratio": run["wall_ratio"],
-            "protein_ratio": run["protein_ratio"],
-            "obs_history_steps": run["obs_history_steps"],
-            "reward_shaping": run["reward_shaping"],
-        })
+        .environment(env=env_name, env_config=env_settings)
         .framework("torch")
         .env_runners(num_env_runners=run["num_env_runners"])
         .training(

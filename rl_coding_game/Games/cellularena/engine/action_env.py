@@ -65,6 +65,10 @@ class CellularenaActionEnv(CellularenaEnv):
             )
         return super().step(translated)
 
+    def step_slot_actions(self, actions: Dict[str, np.ndarray]):
+        """Execute already-decoded native per-root actions."""
+        return super().step(actions)
+
     def action_mask(self, agent: str) -> np.ndarray:
         player_idx = self._agent_to_idx[agent]
         return transform_action_mask(build_action_mask(self._game, player_idx), player_idx)

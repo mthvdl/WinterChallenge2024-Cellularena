@@ -103,12 +103,12 @@ class PlayerState:
 		return bool(self.organs)
 
 	def can_progress(self, grid: Grid) -> bool:
-		for o in self.organs:
-			if o.is_harvester():
-				tile = grid.get(o.get_faced_coord())
+		for organ in self.organs:
+			if organ.is_harvester():
+				tile = grid.get(organ.get_faced_coord())
 				if tile and tile.has_protein():
 					return True
-		return any(self.can_afford(t) for t in OrganType if t != OrganType.ROOT)
+		return any(self.can_afford(organ_type) for organ_type in OrganType)
 
 
 class Game:
@@ -483,14 +483,17 @@ class Game:
 			if not player.is_alive():
 				self.terminal_reason = "player_eliminated"
 				return True
-		starved = [not player.can_progress(self.grid) for player in self.players]
-		if self.grid.width < MAX_W or self.grid.height < MAX_H:
-			if all(starved):
-				self.terminal_reason = "both_players_starved"
-				return True
-			if any(starved):
+		can_progress = [player.can_progress(self.grid) for player in self.players]
+		if not any(can_progress):
+			self.terminal_reason = "both_players_starved"
+			return True
+		for player in self.players:
+			if not can_progress[player.idx] and player.organ_count < self.players[1 - player.idx].organ_count:
 				self.terminal_reason = "player_starved"
 				return True
+		if all(tile.has_organ() or tile.obstacle for tile in self.grid.cells.values()):
+			self.terminal_reason = "grid_full"
+			return True
 		if self.turn >= MAX_TURNS:
 			self.terminal_reason = "max_turns"
 			return True

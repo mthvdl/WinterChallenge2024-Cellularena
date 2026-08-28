@@ -1,11 +1,67 @@
 import pytest
 
-from Core.ray_policies import league_policy_mapping, load_policy_from_checkpoint, policy_setup
+from Core.ray_policies import (
+	league_policy_mapping,
+	load_policy_from_checkpoint,
+	policy_setup,
+	resolve_opponent_policy_ids,
+	seed_opponents_from_policy,
+)
+
+
+def test_cold_start_league_allocates_every_pool_slot() -> None:
+	assert resolve_opponent_policy_ids(True, True, 3, 0) == [
+		"opponent_000",
+		"opponent_001",
+		"opponent_002",
+	]
+
+
+def test_partial_league_history_still_allocates_every_pool_slot() -> None:
+	assert len(resolve_opponent_policy_ids(True, True, 5, 2)) == 5
+
+
+def test_frozen_checkpoint_mode_allocates_only_matching_slots() -> None:
+	assert resolve_opponent_policy_ids(True, False, 8, 2) == [
+		"opponent_000",
+		"opponent_001",
+	]
+
+
+def test_seed_opponents_copies_one_source_state_to_every_slot() -> None:
+	class FakeAlgorithm:
+		def get_weights(self, policy_ids):
+			assert policy_ids == ["learner"]
+			return {"learner": {"weight": 7}}
+
+		def set_weights(self, weights):
+			self.weights = weights
+
+	algorithm = FakeAlgorithm()
+	seed_opponents_from_policy(
+		algorithm, "learner", ["opponent_000", "opponent_001"]
+	)
+
+	assert algorithm.weights == {
+		"opponent_000": {"weight": 7},
+		"opponent_001": {"weight": 7},
+	}
 
 
 def test_shared_policy_setup() -> None:
 	policies, mapping, policies_to_train = policy_setup()
 	assert set(policies) == {"shared"}
+	assert mapping("player_0") == "shared"
+	assert mapping("player_1") == "shared"
+	assert policies_to_train == ["shared"]
+
+
+def test_auxiliary_policy_is_not_used_for_gameplay_or_training() -> None:
+	policies, mapping, policies_to_train = policy_setup(
+		auxiliary_policy_ids=("replay_previous",),
+	)
+
+	assert set(policies) == {"shared", "replay_previous"}
 	assert mapping("player_0") == "shared"
 	assert mapping("player_1") == "shared"
 	assert policies_to_train == ["shared"]

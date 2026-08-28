@@ -5,6 +5,7 @@ import functools
 from typing import Any
 
 import torch
+from gymnasium import spaces
 from ray.rllib.algorithms.sac.sac_learner import (
     ACTION_LOG_PROBS,
     ACTION_LOG_PROBS_NEXT,
@@ -80,12 +81,12 @@ class _SpatialHead(TorchModel):
 
 
 class _SpatialEncoder(TorchModel, Encoder):
-    def __init__(self) -> None:
-        config = _SpatialModelConfig(input_dims=(N_CHANNELS, MAX_H, MAX_W))
+    def __init__(self, input_channels: int = N_CHANNELS) -> None:
+        config = _SpatialModelConfig(input_dims=(input_channels, MAX_H, MAX_W))
         TorchModel.__init__(self, config)
         Encoder.__init__(self, config)
         self.net = nn.Sequential(
-            nn.Conv2d(N_CHANNELS, 32, kernel_size=1),
+            nn.Conv2d(input_channels, 32, kernel_size=1),
             nn.ReLU(),
             _ResidualBlock(32),
             _ResidualBlock(32),
@@ -120,7 +121,11 @@ class CellularenaSACCatalog(SACCatalog):
 
     def build_encoder(self, framework: str) -> Encoder:
         assert framework == "torch"
-        return _SpatialEncoder()
+        observation_space = self.observation_space
+        if isinstance(observation_space, spaces.Dict):
+            observation_space = observation_space["observations"]
+        input_channels = observation_space.shape[-1]
+        return _SpatialEncoder(input_channels)
 
     def build_pi_head(self, framework: str) -> TorchModel:
         assert framework == "torch"

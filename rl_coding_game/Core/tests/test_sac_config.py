@@ -72,6 +72,7 @@ def test_sac_config_league_pool_only_samples_learner_module() -> None:
 	config = build_config(
 		frozen_opponent=True,
 		opponent_policy_ids=("opponent_000", "opponent_001"),
+		auxiliary_policy_ids=("replay_previous",),
 		overrides={
 			"sac": {
 				"replay_type": "MultiAgentPrioritizedEpisodeReplayBuffer",
@@ -82,3 +83,9 @@ def test_sac_config_league_pool_only_samples_learner_module() -> None:
 
 	assert config.replay_buffer_config["type"] is TrainableOnlySamplePrioritizedReplayBuffer
 	assert config.replay_buffer_config["modules_to_sample"] == ["learner"]
+	assert set(config.policies) == {
+		"learner",
+		"opponent_000",
+		"opponent_001",
+		"replay_previous",
+	}

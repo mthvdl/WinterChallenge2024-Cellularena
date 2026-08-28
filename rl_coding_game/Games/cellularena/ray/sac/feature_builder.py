@@ -27,12 +27,18 @@ __all__ = [
 class SACFeatureBuilder:
     """Build SAC's customizable fixed-size feature vector."""
 
-    observation_space = spaces.Box(
-        low=-np.inf,
-        high=np.inf,
-        shape=(MAX_H, MAX_W, N_CHANNELS),
-        dtype=np.float32,
-    )
+    def __init__(self, history_steps: int = 1) -> None:
+        self.history_steps = int(history_steps)
+        if self.history_steps < 1:
+            raise ValueError("history_steps must be >= 1")
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(MAX_H, MAX_W, N_CHANNELS * self.history_steps),
+            dtype=np.float32,
+        )
 
     def build(self, raw_observation: dict[str, Any]) -> np.ndarray:
-        return encode_observation(raw_observation).reshape(MAX_H, MAX_W, N_CHANNELS)
+        return encode_observation(raw_observation, self.history_steps).reshape(
+            MAX_H, MAX_W, N_CHANNELS * self.history_steps
+        )

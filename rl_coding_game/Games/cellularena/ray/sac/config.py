@@ -6,9 +6,10 @@ from typing import Callable
 
 from ray.rllib.algorithms.sac import SACConfig
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
-from Core.ray_config import RayRunSettings, settings_dict
+from Core.ray_config import settings_dict
 from Core.ray_policies import policy_setup
 from Games.cellularena.engine.action_adapter import N_ACTIONS
+from Games.cellularena.ray.config import resolve_run_and_env_settings
 from Games.cellularena.ray.sac.modules import CNNSACNetwork, MaskedSACTorchRLModule, SACNetwork
 from Games.cellularena.ray.sac.replay_buffer import REPLAY_BUFFER_TYPES
 
@@ -18,15 +19,16 @@ def build_config(
     num_env_runners: int = 0,
     frozen_opponent: bool = False,
     opponent_policy_ids: tuple[str, ...] = ("opponent",),
+    auxiliary_policy_ids: tuple[str, ...] = (),
     overrides: dict | None = None,
     network_factory: Callable[[], SACNetwork] = CNNSACNetwork,
 ) -> SACConfig:
     """Build SAC settings for the discrete Cellularena action space."""
     policies, policy_mapping_fn, policies_to_train = policy_setup(
-        frozen_opponent, opponent_policy_ids
+        frozen_opponent, opponent_policy_ids, auxiliary_policy_ids
     )
     values = overrides or {}
-    run = settings_dict(RayRunSettings(num_env_runners=num_env_runners), values.get("run"))
+    run, env_settings = resolve_run_and_env_settings(values, num_env_runners)
     sac_values = values.get("sac") or {}
     if not isinstance(sac_values, dict):
         raise ValueError("The 'sac' configuration section must be a mapping.")
@@ -105,14 +107,7 @@ def build_config(
     config = (
         SACConfig()
         .rl_module(rl_module_spec=RLModuleSpec(module_class=MaskedSACTorchRLModule))
-        .environment(env=env_name, env_config={
-            "map_height": run["map_height"],
-            "map_width": run["map_width"],
-            "wall_ratio": run["wall_ratio"],
-            "protein_ratio": run["protein_ratio"],
-            "obs_history_steps": run["obs_history_steps"],
-            "reward_shaping": run["reward_shaping"],
-        })
+        .environment(env=env_name, env_config=env_settings)
         .framework("torch")
         .env_runners(
             num_env_runners=run["num_env_runners"],

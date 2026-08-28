@@ -1,11 +1,12 @@
 # Cellularena Rainbow DQN CPU profile. Copy to config.yaml for a run.
-run:
+env:
   map_height: 8
   #map_width: 16  # Defaults to map_height * 2 when unset.
   #wall_ratio: 0.2  # Fraction of the left half turned into obstacles; random 0-0.35 when unset.
   #protein_ratio: 0.1  # Fraction of the left half seeded with proteins; random 0-0.15 when unset.
   obs_history_steps: 1
   reward_shaping: false
+run:
   debug: false  # Keep Ray available after training for interactive debugging.
   iterations: 20
   checkpoint_interval: 5

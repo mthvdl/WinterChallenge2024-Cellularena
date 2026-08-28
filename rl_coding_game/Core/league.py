@@ -53,3 +53,22 @@ def discover_checkpoints(pool_dir: Path) -> list[Path]:
 		if path.is_dir()
 	]
 	return sorted(checkpoints, key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True)
+
+
+def latest_checkpoint_before(
+	checkpoints_dir: Path,
+	step: int,
+	fallback: Path | None = None,
+) -> Path | None:
+	"""Return the highest numbered checkpoint strictly older than ``step``."""
+	candidates: list[tuple[int, Path]] = []
+	for path in checkpoints_dir.glob("checkpoint_*"):
+		if not path.is_dir():
+			continue
+		try:
+			checkpoint_step = int(path.name.removeprefix("checkpoint_"))
+		except ValueError:
+			continue
+		if checkpoint_step < step:
+			candidates.append((checkpoint_step, path))
+	return max(candidates, default=(0, fallback), key=lambda item: item[0])[1]

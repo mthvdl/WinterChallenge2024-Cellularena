@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from Games.cellularena.engine.action_adapter import iterative_policy_masking_to_slot_actions
+from Games.cellularena.engine.action_adapter import (
+    iterative_policy_masking_to_slot_actions,
+    transform_action_values,
+)
 from Games.cellularena.engine.game import Game
 
 
@@ -20,5 +23,5 @@ class IterativeActionRuntime:
         return iterative_policy_masking_to_slot_actions(
             game=game,
             player_idx=player_idx,
-            policy_logits=policy_logits,
+            policy_logits=transform_action_values(policy_logits, player_idx),
         )

@@ -156,7 +156,7 @@ python Viewer/viewer_server.py --port 8000
 | **Combat** | A TENTACLE kills the organ it faces; removes entire child subtree |
 | **Sporing** | A SPORER fires a new ROOT along its facing line-of-sight |
 | **Collision** | Two growths targeting same cell → both pay cost, cell becomes wall |
-| **Turns** | Max 100; also ends on elimination, grid full, or no progress |
+| **Turns** | Final-league rules: max 100; also ends on elimination, full grid, both players stalled, or a trailing player stalled |
 | **Score** | Total organ count; tie-break by total proteins |
 
 ---

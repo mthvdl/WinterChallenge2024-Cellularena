@@ -73,6 +73,7 @@ def test_potential_shaping_is_zero_sum_and_terminal_safe():
     env = CellularenaEnv(seed=3, reward_shaping=True)
     env.reset()
     env._game.set_storage([0, 0, 0, 0], [0, 0, 0, 0])
+    env._game.turn = MAX_TURNS - 1
     env._potentials = env._state_potentials()
 
     _, rewards, terminations, _, _ = env.step(
@@ -106,6 +107,7 @@ def test_terminal_info_reports_harvest_and_storage():
     env = CellularenaEnv(seed=3, reward_shaping=False)
     env.reset()
     env._game.set_storage([0, 0, 0, 0], [0, 0, 0, 0])
+    env._game.turn = MAX_TURNS - 1
     _, _, terminations, _, infos = env.step(
         {"player_0": np.zeros(8, dtype=np.int64), "player_1": np.zeros(8, dtype=np.int64)}
     )
@@ -127,7 +129,6 @@ def test_full_episode():
         "player_starved",
         "both_players_starved",
         "grid_full",
-        "no_progress",
     }
     print(
         f"  episode done in {result['steps']} steps, "

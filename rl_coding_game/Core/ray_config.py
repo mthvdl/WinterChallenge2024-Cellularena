@@ -9,12 +9,6 @@ from typing import Any, Mapping
 
 @dataclass(frozen=True)
 class RayRunSettings:
-    map_height: int = 8
-    map_width: int | None = None
-    wall_ratio: float | None = None
-    protein_ratio: float | None = None
-    obs_history_steps: int = 1
-    reward_shaping: bool = False
     debug: bool = False
     iterations: int = 1
     checkpoint_interval: int = 0

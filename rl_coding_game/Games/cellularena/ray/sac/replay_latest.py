@@ -13,11 +13,12 @@ from Core.project_paths import (
 	experiment_replays_dir,
 	experiment_root,
 )
-from Core.ray_config import RayRunSettings, load_overrides, settings_dict
+from Core.ray_config import load_overrides
 from Core.ray_env import register_env
 from Core.ray_policies import load_policy_from_checkpoint
 from Games.cellularena.engine.tools.game_recorder import save_checkpoint_replay
 from Games.cellularena.factories import make_action_env
+from Games.cellularena.ray.config import resolve_run_and_env_settings
 from Games.cellularena.ray.env_wrapper import make_sac_env_creator
 from Games.cellularena.ray.sac.config import build_config
 from Games.cellularena.ray.sac.feature_builder import SACFeatureBuilder
@@ -75,9 +76,17 @@ def main() -> None:
 		"num_env_runners": 0,
 		"num_gpus": 0,
 	})
-	run = settings_dict(RayRunSettings(), overrides["run"])
+	_, env_settings = resolve_run_and_env_settings(overrides)
 
-	register_env("cellularena_ray_sac_replay", make_sac_env_creator(feature_builder_factory=SACFeatureBuilder))
+	register_env(
+		"cellularena_ray_sac_replay",
+		make_sac_env_creator(
+			feature_builder_factory=partial(
+				SACFeatureBuilder,
+				history_steps=env_settings["obs_history_steps"],
+			)
+		),
+	)
 	ray.init(ignore_reinit_error=True, include_dashboard=False)
 	algorithm = build_config(
 		"cellularena_ray_sac_replay",
@@ -94,15 +103,11 @@ def main() -> None:
 			partial(
 				make_action_env,
 				seed=args.seed,
-				obs_history_steps=run["obs_history_steps"],
-				map_height=run["map_height"],
-				map_width=run["map_width"],
-				wall_ratio=run["wall_ratio"],
-				protein_ratio=run["protein_ratio"],
+				**env_settings,
 			),
-			_AlgorithmBot(algorithm, "learner"),
+			_AlgorithmBot(algorithm, "learner", env_settings["obs_history_steps"]),
 			"player_0",
-			_AlgorithmBot(algorithm, "previous"),
+			_AlgorithmBot(algorithm, "previous", env_settings["obs_history_steps"]),
 			experiment_name,
 			checkpoint_step(latest),
 			previous.name,

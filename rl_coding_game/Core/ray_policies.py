@@ -10,6 +10,47 @@ from typing import Any
 from ray.rllib.policy.policy import PolicySpec
 
 
+def resolve_opponent_modes(
+	league_config_enabled: bool,
+	frozen_opponent_requested: bool,
+	has_opponent_checkpoints: bool,
+) -> tuple[bool, bool]:
+	league_enabled = bool(league_config_enabled)
+	frozen_opponent = bool(
+		league_enabled or frozen_opponent_requested or has_opponent_checkpoints
+	)
+	return frozen_opponent, league_enabled
+
+
+def resolve_opponent_policy_ids(
+	frozen_opponent: bool,
+	league_enabled: bool,
+	league_pool_size: int,
+	checkpoint_count: int,
+	requested_policy_ids: list[str] | None = None,
+) -> list[str]:
+	if requested_policy_ids is not None:
+		return list(requested_policy_ids)
+	if league_enabled:
+		if league_pool_size < 1:
+			raise ValueError("League pool size must be at least 1.")
+		count = league_pool_size
+	else:
+		count = max(checkpoint_count, 1 if frozen_opponent else 0)
+	return [f"opponent_{index:03d}" for index in range(count)]
+
+
+def seed_opponents_from_policy(
+	algorithm: Any,
+	source_policy_id: str,
+	opponent_policy_ids: list[str],
+) -> None:
+	if not opponent_policy_ids:
+		return
+	source_weights = algorithm.get_weights([source_policy_id])[source_policy_id]
+	algorithm.set_weights({policy_id: source_weights for policy_id in opponent_policy_ids})
+
+
 def shared_policy_mapping(agent_id: str, *args: Any, **kwargs: Any) -> str:
 	"""Map every player to one shared policy."""
 	del agent_id, args, kwargs
@@ -49,14 +90,18 @@ def league_policy_mapping(
 def policy_setup(
 	frozen_opponent: bool = False,
 	opponent_policy_ids: tuple[str, ...] = ("opponent",),
+	auxiliary_policy_ids: tuple[str, ...] = (),
 ) -> tuple[dict[str, PolicySpec], Callable[..., str], list[str]]:
 	"""Return policy specs, mapping, and policy IDs eligible for training."""
 	if not frozen_opponent:
-		return {"shared": PolicySpec()}, shared_policy_mapping, ["shared"]
+		policies = {"shared": PolicySpec()}
+		policies.update({policy_id: PolicySpec() for policy_id in auxiliary_policy_ids})
+		return policies, shared_policy_mapping, ["shared"]
 	if not opponent_policy_ids:
 		raise ValueError("At least one opponent policy is required.")
 	policies = {"learner": PolicySpec()}
 	policies.update({policy_id: PolicySpec() for policy_id in opponent_policy_ids})
+	policies.update({policy_id: PolicySpec() for policy_id in auxiliary_policy_ids})
 	return (
 		policies,
 		league_policy_mapping(opponent_policy_ids),

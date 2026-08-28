@@ -1,6 +1,11 @@
 import json
 
-from Core.league import MANIFEST_NAME, discover_checkpoints, promote_checkpoint
+from Core.league import (
+	MANIFEST_NAME,
+	discover_checkpoints,
+	latest_checkpoint_before,
+	promote_checkpoint,
+)
 
 
 def test_promote_checkpoint_keeps_newest_pool_entries(tmp_path) -> None:
@@ -34,3 +39,17 @@ def test_discover_checkpoints_only_reads_the_given_experiment_pool(tmp_path) -> 
 
 def test_discover_checkpoints_skips_experiments_without_a_pool(tmp_path) -> None:
 	assert discover_checkpoints(tmp_path / "missing" / "league_pool") == []
+
+
+def test_latest_checkpoint_before_uses_numeric_step_order(tmp_path) -> None:
+	for name in ("checkpoint_9", "checkpoint_10", "checkpoint_100"):
+		(tmp_path / name).mkdir()
+
+	assert latest_checkpoint_before(tmp_path, 100) == tmp_path / "checkpoint_10"
+	assert latest_checkpoint_before(tmp_path, 101) == tmp_path / "checkpoint_100"
+
+
+def test_latest_checkpoint_before_uses_fallback_when_no_checkpoint_exists(tmp_path) -> None:
+	fallback = tmp_path / "resumed_checkpoint_50"
+
+	assert latest_checkpoint_before(tmp_path, 60, fallback) == fallback

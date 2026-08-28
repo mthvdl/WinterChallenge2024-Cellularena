@@ -5,7 +5,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).parent))
 
 from Games.cellularena.engine.game import Game
-from Games.cellularena.engine.coord import Coord
+from Games.cellularena.engine.coord import Coord, Direction
 from Games.cellularena.engine.grid import Grid, Protein
 from Games.cellularena.engine.organ import OrganType
 from Games.cellularena.engine.replay_loader import load_replay
@@ -61,7 +61,7 @@ def test_replay_step():
     root_p0 = g.players[0].roots[0]
     pos = root_p0.pos
     grid = g.grid
-    
+
     # Find first free neighbour for player 0
     from Games.cellularena.engine.coord import ADJACENCY
     target_p0 = None
@@ -97,21 +97,8 @@ def test_replay_step():
     print(f"  step_replay OK — organs {organs_before} → {organs_after}")
 
 
-def test_single_starvation_ends_game():
-    """CodingGame ends when either player cannot evolve or harvest again."""
+def test_tied_starved_player_does_not_end_game():
     g = Game(seed=7, map_width=20, map_height=10)
-    g.reset()
-    g.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
-
-    done, rewards = g.step({0: [0], 1: [0]})
-
-    assert done
-    assert g.terminal_reason == "player_starved"
-    assert rewards == {0: -0.5, 1: 0.5}
-
-
-def test_final_league_does_not_end_on_starvation():
-    g = Game(seed=7, map_width=24, map_height=12)
     g.reset()
     g.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
 
@@ -119,6 +106,26 @@ def test_final_league_does_not_end_on_starvation():
 
     assert not done
     assert g.terminal_reason == ""
+
+
+def test_losing_starved_player_ends_game():
+    g = Game(seed=7, map_width=20, map_height=10)
+    g.reset()
+    root = g.players[1].roots[0]
+    target = next(
+        coord for coord in g.grid.get_neighbours(root.pos)
+        if not g.grid.get(coord).obstacle and not g.grid.get(coord).has_organ()
+    )
+    organ = g._make_organ(1, OrganType.BASIC, Direction.NORTH)
+    g._place_organ(organ, target)
+    g._connect(root, organ)
+    g.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
+
+    done, rewards = g.step({0: [0], 1: [0]})
+
+    assert done
+    assert g.terminal_reason == "player_starved"
+    assert rewards == {0: -1.0, 1: 1.0}
 
 
 def test_missing_replay_command_disqualifies_player():
@@ -133,9 +140,8 @@ def test_missing_replay_command_disqualifies_player():
     assert rewards == {0: -1.0, 1: 1.0}
 
 
-def test_both_starved_uses_normal_tiebreak():
-    """Simultaneous starvation ends the game without a double-win reward."""
-    g = Game(seed=8)
+def test_both_starved_end_game():
+    g = Game(seed=8, map_width=20, map_height=10)
     g.reset()
     g.set_storage([0, 0, 0, 0], [0, 0, 0, 0])
 
@@ -144,6 +150,20 @@ def test_both_starved_uses_normal_tiebreak():
     assert done
     assert g.terminal_reason == "both_players_starved"
     assert rewards == {0: 0.0, 1: 0.0}
+
+
+def test_full_grid_ends_game():
+    g = Game(seed=8, map_width=20, map_height=10)
+    g.reset()
+    for tile in g.grid.cells.values():
+        if not tile.has_organ():
+            tile.set_obstacle()
+    g.set_storage([10, 10, 10, 10], [10, 10, 10, 10])
+
+    done, _ = g.step({0: [0], 1: [0]})
+
+    assert done
+    assert g.terminal_reason == "grid_full"
 
 
 def test_equal_codingame_ranks_are_a_tie():

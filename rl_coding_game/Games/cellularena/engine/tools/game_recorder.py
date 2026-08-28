@@ -200,18 +200,33 @@ def record_episode(
     before = _snapshot(env._game)
     turn = 1
     _supports_mask = hasattr(env, "action_mask")
+    joint_action_mode = all(
+        hasattr(bot, "select_joint_action") for bot in (main_bot, opponent_bot)
+    )
 
     while env.agents:
         actions: Dict[str, Any] = {}
         for agent in env.agents:
             mask = env.action_mask(agent) if _supports_mask else None
-            if agent == main_agent:
-                action, _ = main_bot.select_action(obs[agent], deterministic=True, action_mask=mask)
+            bot = main_bot if agent == main_agent else opponent_bot
+            if joint_action_mode:
+                action, _ = bot.select_joint_action(
+                    obs[agent],
+                    game=env._game,
+                    player_idx=env._agent_to_idx[agent],
+                    deterministic=True,
+                    action_mask=mask,
+                )
             else:
-                action, _ = opponent_bot.select_action(obs[agent], deterministic=True, action_mask=mask)
+                action, _ = bot.select_action(
+                    obs[agent], deterministic=True, action_mask=mask
+                )
             actions[agent] = action
 
-        obs, _, terms, truncs, _ = env.step(actions)
+        if joint_action_mode:
+            obs, _, terms, truncs, _ = env.step_slot_actions(actions)
+        else:
+            obs, _, terms, truncs, _ = env.step(actions)
 
         after = _snapshot(env._game)
         events = _build_events(before, after)

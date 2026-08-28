@@ -5,6 +5,7 @@ import argparse
 import signal
 import shutil
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,14 @@ from ray.rllib.core.columns import Columns
 
 from Core.ray_env import register_env
 from Core.ray_config import LeaguePoolSettings, load_overrides, settings_dict
-from Core.ray_policies import load_policy_from_checkpoint
+from Core.ray_policies import (
+	load_policy_from_checkpoint,
+	resolve_opponent_modes,
+	resolve_opponent_policy_ids,
+	seed_opponents_from_policy,
+)
 from Core.ray_training import print_metrics, train
-from Core.league import discover_checkpoints, promote_checkpoint
+from Core.league import discover_checkpoints, latest_checkpoint_before, promote_checkpoint
 from Core.project_paths import (
 	algorithm_config_example,
 	experiment_checkpoints_dir,
@@ -26,8 +32,11 @@ from Core.project_paths import (
 	experiment_root,
 	experiment_snapshot_dir,
 )
+from Games.cellularena.engine.action_adapter import N_ACTIONS
+from Games.cellularena.engine.obs.runtime_bridge import IterativeActionRuntime
 from Games.cellularena.engine.tools.game_recorder import save_checkpoint_replay
 from Games.cellularena.factories import make_action_env
+from Games.cellularena.ray.config import resolve_run_and_env_settings
 from Games.cellularena.ray.sac.feature_builder import SACFeatureBuilder
 from Games.cellularena.ray.env_wrapper import make_sac_env_creator
 from Games.cellularena.ray.sac.config import build_config
@@ -35,26 +44,67 @@ from Games.cellularena.ray.sac.modules import CNNSACNetwork
 
 
 class _AlgorithmBot:
-	def __init__(self, algorithm: Any, policy_id: str) -> None:
+	def __init__(self, algorithm: Any, policy_id: str, history_steps: int = 1) -> None:
 		self.algorithm = algorithm
 		self.policy_id = policy_id
+		self.feature_builder = SACFeatureBuilder(history_steps)
 
-	def select_action(self, observation: Any, deterministic: bool = True, action_mask: Any = None):
-		features = SACFeatureBuilder().build(observation)
+	def _action_logits(self, observation: Any, action_mask: Any = None) -> torch.Tensor:
+		features = self.feature_builder.build(observation)
 		if action_mask is None:
-			action_mask = np.ones(4033, dtype=np.float32)
+			action_mask = np.ones(N_ACTIONS, dtype=np.float32)
 		module = self.algorithm.get_module(self.policy_id)
 		with torch.no_grad():
 			outputs = module.forward_inference({Columns.OBS: {
 				"observations": torch.from_numpy(features[None, ...]),
 				"action_mask": torch.from_numpy(np.asarray(action_mask, dtype=np.float32)[None, :]),
 			}})
-		logits = outputs[Columns.ACTION_DIST_INPUTS]
+		return outputs[Columns.ACTION_DIST_INPUTS]
+
+	def select_action(self, observation: Any, deterministic: bool = True, action_mask: Any = None):
+		logits = self._action_logits(observation, action_mask)
 		if deterministic:
 			action = torch.argmax(logits, dim=-1)
 		else:
 			action = torch.distributions.Categorical(logits=logits).sample()
 		return int(action.item()), None
+
+	def select_joint_action(
+		self,
+		observation: Any,
+		game: Any,
+		player_idx: int,
+		deterministic: bool = True,
+		action_mask: Any = None,
+	):
+		if not deterministic:
+			raise ValueError("Joint action decoding currently requires deterministic inference.")
+		logits = self._action_logits(observation, action_mask).squeeze(0).cpu().numpy()
+		return IterativeActionRuntime().build_joint_action(game, player_idx, logits), None
+
+
+def _make_replay_env_factory(env_settings: dict[str, Any], seed: int):
+	return partial(make_action_env, seed=seed, **env_settings)
+
+
+def _load_previous_replay_policy(
+	algorithm: Any,
+	checkpoints_dir: Path,
+	step: int,
+	replay_policy_id: str,
+	fallback_checkpoint: Path | None = None,
+) -> str:
+	previous_checkpoint = latest_checkpoint_before(
+		checkpoints_dir, step, fallback_checkpoint
+	)
+	if previous_checkpoint is None:
+		return "initial_network"
+	load_policy_from_checkpoint(
+		algorithm,
+		str(previous_checkpoint),
+		target_policy_id=replay_policy_id,
+	)
+	return previous_checkpoint.name
 
 
 def main() -> None:
@@ -79,57 +129,83 @@ def main() -> None:
 		overrides.setdefault("run", {})["iterations"] = args.iterations
 	if args.num_env_runners is not None:
 		overrides.setdefault("run", {})["num_env_runners"] = args.num_env_runners
-	run_iterations = overrides.get("run", {}).get("iterations", 1)
-	checkpoint_interval = overrides.get("run", {}).get("checkpoint_interval", 0)
-	replay_interval = overrides.get("run", {}).get("replay_interval", 0)
-	debug = overrides.get("run", {}).get("debug", False)
+	run, env_settings = resolve_run_and_env_settings(overrides)
+	run_iterations = run["iterations"]
+	checkpoint_interval = run["checkpoint_interval"]
+	replay_interval = run["replay_interval"]
+	replay_policy_id = "replay_previous" if replay_interval else None
+	debug = run["debug"]
 	league_pool = settings_dict(LeaguePoolSettings(), overrides.get("league_pool"))
-	frozen_opponent = bool(league_pool["enabled"] or args.frozen_opponent or args.opponent_checkpoint)
-	league_enabled = frozen_opponent
+	frozen_opponent, league_enabled = resolve_opponent_modes(
+		league_pool["enabled"], args.frozen_opponent, bool(args.opponent_checkpoint)
+	)
 	league_pool_size = league_pool["max_size"]
 	opponent_checkpoints = args.opponent_checkpoint
 	if league_enabled and not opponent_checkpoints:
-		opponent_checkpoints = discover_checkpoints(
+		opponent_checkpoints = list(reversed(discover_checkpoints(
 			experiment_snapshot_dir("cellularena", "sac", args.experiment_name)
-		)[:league_pool_size]
+		)[:league_pool_size]))
 	if league_enabled and not opponent_checkpoints:
-		# Bootstrap case: no prior league checkpoint exists yet. Start with
-		# randomly-initialized opponent policies instead of failing; the pool
-		# fills in as checkpoints get promoted during this run (see below).
-		print("No league checkpoints found; starting with randomly initialized opponent policies.")
-	opponent_policy_ids = args.opponent_policy or [
-		f"opponent_{i:03d}" for i in range(max(len(opponent_checkpoints), 1 if league_enabled else 0))
-	]
+		print("No league checkpoints found; seeding opponents from the initial learner.")
+	opponent_policy_ids = resolve_opponent_policy_ids(
+		frozen_opponent,
+		league_enabled,
+		league_pool_size,
+		len(opponent_checkpoints),
+		args.opponent_policy,
+	)
 	checkpoints_dir = experiment_checkpoints_dir("cellularena", "sac", args.experiment_name)
 
-	register_env("cellularena_ray_sac", make_sac_env_creator(feature_builder_factory=SACFeatureBuilder))
+	register_env(
+		"cellularena_ray_sac",
+		make_sac_env_creator(
+			feature_builder_factory=partial(
+				SACFeatureBuilder,
+				history_steps=env_settings["obs_history_steps"],
+			)
+		),
+	)
 	ray.init(ignore_reinit_error=True, include_dashboard=True)
 	algorithm = build_config(
 		"cellularena_ray_sac",
 		frozen_opponent=frozen_opponent,
 		opponent_policy_ids=tuple(opponent_policy_ids),
+		auxiliary_policy_ids=(replay_policy_id,) if replay_policy_id else (),
 		overrides=overrides,
 		network_factory=CNNSACNetwork,
 	).build_algo()
 	try:
 		if args.resume_checkpoint:
 			algorithm.restore(str(args.resume_checkpoint.resolve()))
+		main_policy_id = "learner" if frozen_opponent else "shared"
+		if replay_policy_id:
+			seed_opponents_from_policy(algorithm, main_policy_id, [replay_policy_id])
+		if league_enabled and not args.resume_checkpoint:
+			seed_opponents_from_policy(algorithm, main_policy_id, opponent_policy_ids)
 		if opponent_checkpoints:
-			if not league_enabled:
-				raise ValueError("--opponent-checkpoint requires --frozen-opponent")
-			if len(opponent_checkpoints) != len(opponent_policy_ids):
-				raise ValueError("Each opponent policy needs exactly one matching checkpoint.")
+			if len(opponent_checkpoints) > len(opponent_policy_ids) or (
+				not league_enabled and len(opponent_checkpoints) != len(opponent_policy_ids)
+			):
+				raise ValueError("Opponent checkpoints exceed the available policy slots.")
 			for policy_id, checkpoint in zip(opponent_policy_ids, opponent_checkpoints):
 				load_policy_from_checkpoint(algorithm, str(checkpoint), target_policy_id=policy_id)
-		main_policy_id = "learner" if frozen_opponent else "shared"
-		opponent_policy_id = opponent_policy_ids[0] if frozen_opponent else "shared"
-		main_bot = _AlgorithmBot(algorithm, main_policy_id)
-		opponent_bot = _AlgorithmBot(algorithm, opponent_policy_id)
+		main_bot = _AlgorithmBot(
+			algorithm, main_policy_id, env_settings["obs_history_steps"]
+		)
+		replay_bot = (
+			_AlgorithmBot(algorithm, replay_policy_id, env_settings["obs_history_steps"])
+			if replay_policy_id
+			else None
+		)
 		start_iteration = 0
 		if args.resume_checkpoint:
 			start_iteration = int(args.resume_checkpoint.name.removeprefix("checkpoint_"))
 
-		opponent_rotation = {"index": 0}
+		opponent_rotation = {
+			"index": len(opponent_checkpoints) % len(opponent_policy_ids)
+			if league_enabled
+			else 0
+		}
 
 		def _refresh_league(checkpoint_path: Path, step: int) -> None:
 			promote_checkpoint(
@@ -145,6 +221,28 @@ def main() -> None:
 			opponent_rotation["index"] += 1
 			algorithm.set_weights({target_policy_id: algorithm.get_weights([main_policy_id])[main_policy_id]})
 
+		def _save_replay(step: int) -> None:
+			if replay_policy_id is None or replay_bot is None:
+				return
+			previous_name = _load_previous_replay_policy(
+				algorithm,
+				checkpoints_dir,
+				step,
+				replay_policy_id,
+				args.resume_checkpoint,
+			)
+			save_checkpoint_replay(
+				Path(f"iteration_{step}"),
+				_make_replay_env_factory(env_settings, step),
+				main_bot,
+				"player_0",
+				replay_bot,
+				args.experiment_name,
+				step,
+				previous_name,
+				experiment_replays_dir("cellularena", "sac", args.experiment_name),
+			)
+
 		train(
 			algorithm,
 			run_iterations,
@@ -153,17 +251,7 @@ def main() -> None:
 			checkpoint_interval=checkpoint_interval,
 			replay_interval=replay_interval,
 			checkpoint_callback=_refresh_league if league_enabled else None,
-			replay_callback=lambda step: save_checkpoint_replay(
-				Path(f"iteration_{step}"),
-				lambda: make_action_env(map_height=8),
-				main_bot,
-				"player_0",
-				opponent_bot,
-				"cellularena-sac",
-				step,
-				opponent_policy_id,
-				experiment_replays_dir("cellularena", "sac", args.experiment_name),
-			),
+			replay_callback=_save_replay,
 			start_iteration=start_iteration,
 		)
 		if debug:

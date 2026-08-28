@@ -27,6 +27,7 @@ def train(
 	if start_iteration < 0:
 		raise ValueError("start_iteration cannot be negative")
 	results: list[dict[str, Any]] = []
+	final_iteration = start_iteration + iterations
 	if checkpoint_dir is not None:
 		from torch.utils.tensorboard import SummaryWriter
 
@@ -34,7 +35,7 @@ def train(
 	else:
 		writer = None
 	try:
-		for iteration in range(start_iteration + 1, start_iteration + iterations + 1):
+		for iteration in range(start_iteration + 1, final_iteration + 1):
 			result = algorithm.train()
 			results.append(result)
 			if writer is not None:
@@ -46,7 +47,7 @@ def train(
 			if replay_callback is not None and replay_interval and iteration % replay_interval == 0:
 				replay_callback(iteration)
 			should_checkpoint = checkpoint_interval and iteration % checkpoint_interval == 0
-			if checkpoint_dir is not None and (should_checkpoint or iteration == iterations):
+			if checkpoint_dir is not None and (should_checkpoint or iteration == final_iteration):
 				checkpoint_path = Path(checkpoint_dir) / f"checkpoint_{iteration}"
 				checkpoint_path.mkdir(parents=True, exist_ok=True)
 				checkpoint = algorithm.save(str(checkpoint_path))
