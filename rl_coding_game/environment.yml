@@ -14,5 +14,5 @@ dependencies:
       - requests>=2.31
       - duckdb>=1.1.0
       - tensorboard>=2.17
-      - ray[rllib]>=2.45,<2.46
+      - ray[default,rllib]>=2.58,<2.59
 

@@ -14,6 +14,8 @@ from Games.cellularena.engine.action_adapter import (
     N_ACTIONS,
     build_action_mask,
     discrete_action_to_slot_actions,
+    transform_action_index,
+    transform_action_mask,
 )
 from .env import CellularenaEnv
 
@@ -35,6 +37,15 @@ class CellularenaActionEnv(CellularenaEnv):
         del agent
         return spaces.Discrete(N_ACTIONS)
 
+    def observation_space(self, agent: str) -> spaces.Space:
+        base_space = super().observation_space(agent)
+        return spaces.Dict(
+            {
+                **base_space.spaces,
+                "self_player_idx": spaces.Box(0, 1, shape=(1,), dtype=np.int32),
+            }
+        )
+
     def _get_obs(self, player_idx: int) -> Dict:
         obs = super()._get_obs(player_idx)
         out = dict(obs)
@@ -50,13 +61,13 @@ class CellularenaActionEnv(CellularenaEnv):
             translated[agent] = discrete_action_to_slot_actions(
                 game=self._game,
                 player_idx=player_idx,
-                action_index=int(act),
+                action_index=transform_action_index(int(act), player_idx),
             )
         return super().step(translated)
 
     def action_mask(self, agent: str) -> np.ndarray:
         player_idx = self._agent_to_idx[agent]
-        return build_action_mask(self._game, player_idx)
+        return transform_action_mask(build_action_mask(self._game, player_idx), player_idx)
 
 
 def make_action_env(
@@ -64,10 +75,18 @@ def make_action_env(
     render_mode: Optional[str] = None,
     obs_history_steps: int = 1,
     map_height: Optional[int] = None,
+    map_width: Optional[int] = None,
+    wall_ratio: Optional[float] = None,
+    protein_ratio: Optional[float] = None,
+    reward_shaping: bool = False,
 ) -> CellularenaActionEnv:
     return CellularenaActionEnv(
         seed=seed,
         render_mode=render_mode,
         obs_history_steps=obs_history_steps,
         map_height=map_height,
+        map_width=map_width,
+        wall_ratio=wall_ratio,
+        protein_ratio=protein_ratio,
+        reward_shaping=reward_shaping,
     )

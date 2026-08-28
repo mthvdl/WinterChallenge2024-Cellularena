@@ -26,6 +26,7 @@ WAIT_ACTION_INDEX = N_GROW_ACTIONS
 N_ACTIONS = WAIT_ACTION_INDEX + 1
 
 _DIRS = [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]
+_MIRROR_DIR_IDX = (0, 3, 2, 1)
 _ORG_TYPE_TO_SLOT_IDX = {
     OrganType.BASIC: 0,
     OrganType.TENTACLE: 1,
@@ -103,6 +104,35 @@ def _decode_action_index(action_index: int) -> ActionSpec:
         organ_type=OrganType.SPORER,
         face_dir=_DIRS[channel_idx - 10],
     )
+
+
+def transform_action_index(action_index: int, player_idx: int) -> int:
+    """Transform a player-relative action index into raw engine coordinates."""
+    if player_idx == 0 or int(action_index) == WAIT_ACTION_INDEX:
+        return int(action_index)
+    decoded = _decode_action_index(int(action_index))
+    if decoded.target is None:
+        return int(action_index)
+
+    target = Coord(MAX_W - 1 - decoded.target.x, decoded.target.y)
+    channel = int(action_index) // (MAX_H * MAX_W)
+    if 2 <= channel <= 13 and decoded.face_dir is not None:
+        direction_idx = _MIRROR_DIR_IDX[decoded.face_dir.to_index()]
+        channel = channel - decoded.face_dir.to_index() + direction_idx
+    return _action_index_from_channel_and_coord(channel, target)
+
+
+def transform_action_mask(mask: np.ndarray, player_idx: int) -> np.ndarray:
+    """Return a legal-action mask in the player's local perspective."""
+    mask = np.asarray(mask, dtype=bool).reshape(-1)
+    if mask.shape != (N_ACTIONS,):
+        raise ValueError(f"Expected action mask shape {(N_ACTIONS,)}, got {mask.shape}.")
+    if player_idx == 0:
+        return mask.copy()
+    transformed = np.zeros_like(mask)
+    for action_index in np.flatnonzero(mask):
+        transformed[transform_action_index(int(action_index), player_idx)] = True
+    return transformed
 
 
 def _storage_vec_for_player(game: Game, player_idx: int) -> np.ndarray:

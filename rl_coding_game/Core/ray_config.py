@@ -10,9 +10,30 @@ from typing import Any, Mapping
 @dataclass(frozen=True)
 class RayRunSettings:
     map_height: int = 8
+    map_width: int | None = None
+    wall_ratio: float | None = None
+    protein_ratio: float | None = None
     obs_history_steps: int = 1
+    reward_shaping: bool = False
+    debug: bool = False
+    iterations: int = 1
+    checkpoint_interval: int = 0
+    replay_interval: int = 0
+    evaluation_interval: int = 0
+    evaluation_num_env_runners: int = 0
+    evaluation_duration: int = 10
+    evaluation_duration_unit: str = "episodes"
+    evaluation_explore: bool = False
     num_env_runners: int = 0
+    num_cpus_per_env_runner: int = 1
+    num_cpus_for_main_process: int = 2
     num_gpus: int = 0
+
+
+@dataclass(frozen=True)
+class LeaguePoolSettings:
+    enabled: bool = False
+    max_size: int = 8
 
 
 @dataclass(frozen=True)
@@ -25,14 +46,6 @@ class DQNSettings:
     replay_capacity: int = 10_000
     replay_alpha: float = 0.6
     replay_beta: float = 0.4
-
-
-@dataclass(frozen=True)
-class SACSettings:
-    train_batch_size: int = 32
-    gamma: float = 0.99
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
 
 
 def load_overrides(path: str | Path) -> dict[str, Any]:

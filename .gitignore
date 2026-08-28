@@ -17,7 +17,15 @@ JulienMain.java
 # Python / rl_coding_game
 rl_coding_game/.env
 rl_coding_game/env.secret.sh
-rl_coding_game/replays/
+# Shared replay datasets
+**/shared/replays/
 rl_coding_game/remote/aca/ca-bundle.crt
 /rl_coding_game/Games/cellularena/experiments/
+!/rl_coding_game/Games/cellularena/experiments/
+!/rl_coding_game/Games/cellularena/experiments/sac/
+/rl_coding_game/Games/cellularena/experiments/sac/*
+!/rl_coding_game/Games/cellularena/experiments/sac/config.yaml.example
+!/rl_coding_game/Games/cellularena/experiments/dqn/
+/rl_coding_game/Games/cellularena/experiments/dqn/*
+!/rl_coding_game/Games/cellularena/experiments/dqn/config.yaml.example
 /rl_coding_game/Viewer/node_modules/

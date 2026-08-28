@@ -86,23 +86,32 @@ def _ray_wrapper(game: str) -> str:
         from Games.{game}.factories import make_env
         from Games.{game}.engine.env import {cls}Env
         from Games.{game}.policy.action_mask import {cls}ActionMaskBuilder
-        from Games.{game}.ray.dqn.feature_builder import {cls}DQNFeatureBuilder
+
+
+        class FeatureBuilder:
+            """Identity feature builder until an algorithm-specific encoder is selected."""
+
+            def build(self, raw_observation: Any) -> Any:
+                return raw_observation
 
 
         class {cls}RayWrapper(ParallelEnv):
             """Expose transformed observations and optional legal-action masks."""
 
-            def __init__(self, env: {cls}Env) -> None:
+            def __init__(self, env: {cls}Env, feature_builder: Any = None) -> None:
                 self.env = env
-                self.feature_builder = {cls}DQNFeatureBuilder()
+                self.feature_builder = feature_builder or FeatureBuilder()
                 self.action_mask_builder = {cls}ActionMaskBuilder()
                 self.possible_agents = list(env.possible_agents)
                 self.agents = []
                 self.metadata = env.metadata
 
             def observation_space(self, agent: str) -> spaces.Space:
+                observation_space = getattr(self.feature_builder, "observation_space", None)
+                if observation_space is None:
+                    observation_space = self.env.observation_space(agent)
                 return spaces.Dict({{
-                    OBSERVATIONS_KEY: self.env.observation_space(agent),
+                    OBSERVATIONS_KEY: observation_space,
                     ACTION_MASK_KEY: spaces.Box(0, 1, shape=(self.env.action_space(agent).n,), dtype=np.float32)
                 }})
 
@@ -139,10 +148,11 @@ def _ray_wrapper(game: str) -> str:
                 self.env.close()
 
 
-        def make_env_creator():
+        def make_env_creator(feature_builder_factory=FeatureBuilder):
             def env_creator(env_config=None):
                 from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
-                return ParallelPettingZooEnv({cls}RayWrapper(make_env()))
+                return ParallelPettingZooEnv({cls}RayWrapper(make_env(),
+                    feature_builder=feature_builder_factory()))
             return env_creator
     ''')
 
@@ -161,6 +171,49 @@ def _feature_builder(game: str, algorithm: str) -> str:
 
             def build(self, raw_observation: Any) -> Any:
                 return raw_observation
+    ''')
+
+
+def _sac_network(game: str) -> str:
+    cls = _class(game)
+    return textwrap.dedent(f'''\
+        """SAC network customisation for {game}."""
+        from __future__ import annotations
+
+        from ray.rllib.algorithms.sac import SACConfig
+
+
+        class {cls}SACNetwork:
+            """Customize RLlib's current SAC RLModule/catalog here."""
+
+            def customize(self, config: SACConfig) -> SACConfig:
+                # Install a custom RLModuleSpec(catalog_class=...) here when needed.
+                return config
+    ''')
+
+
+def _dqn_network(game: str) -> str:
+    cls = _class(game)
+    return textwrap.dedent(f'''\
+        """DQN network customisation for {game}."""
+        from __future__ import annotations
+
+        from ray.rllib.algorithms.dqn import DQNConfig
+
+
+        class {cls}DQNNetwork:
+            """Customize RLlib Rainbow DQN's network here."""
+
+            def customize(self, config: DQNConfig) -> DQNConfig:
+                # Uncomment this block to configure the shared DQN encoder and head.
+                # return config.training(
+                #     model={{
+                #         "fcnet_hiddens": [512, 256],
+                #         "fcnet_activation": "relu",
+                #         "post_fcnet_hiddens": [256],
+                #     }},
+                # )
+                return config
     ''')
 
 
@@ -190,27 +243,43 @@ def _class(game: str) -> str:
 
 
 def _ray_config(game: str, algorithm: str) -> str:
-	config_cls = "DQNConfig" if algorithm == "dqn" else "SACConfig"
-	return textwrap.dedent(f'''\
+    config_cls = "DQNConfig" if algorithm == "dqn" else "SACConfig"
+    network_import = ""
+    network_parameter = ""
+    network_return = ""
+    if algorithm in ("dqn", "sac"):
+        cls = _class(game)
+        network_import = f"from typing import Callable\nfrom Games.{game}.ray.{algorithm}.modules import {cls}{algorithm.upper()}Network\n"
+        network_parameter = f", network_factory: Callable[[], {cls}{algorithm.upper()}Network] = {cls}{algorithm.upper()}Network"
+        network_return = "\n            config = network_factory().customize(config)"
+    return textwrap.dedent(f'''\
         """Stock Ray RLlib {algorithm.upper()} configuration for {game}."""
+        {network_import}
         from ray.rllib.algorithms.{algorithm} import {config_cls}
         from Core.ray_policies import policy_setup
 
 
         def build_config(env_name="{game}_ray", frozen_opponent=False,
-                         opponent_policy_ids=("opponent",)):
+                         opponent_policy_ids=("opponent",){network_parameter}):
             policies, mapping, policies_to_train = policy_setup(
                 frozen_opponent, tuple(opponent_policy_ids)
             )
-            return ({config_cls}().environment(env=env_name).framework("torch")
+            config = ({config_cls}().environment(env=env_name).framework("torch")
                     .env_runners(num_env_runners=0).multi_agent(
                         policies=policies, policy_mapping_fn=mapping,
-                        policies_to_train=policies_to_train))
+                        policies_to_train=policies_to_train)){network_return}
+            return config
     ''')
 
 
 def _ray_train(game: str, algorithm: str) -> str:
-	return textwrap.dedent(f'''\
+    cls = _class(game)
+    network_import = ""
+    network_argument = ""
+    if algorithm in ("dqn", "sac"):
+        network_import = f"from Games.{game}.ray.{algorithm}.modules import {cls}{algorithm.upper()}Network\n        "
+        network_argument = f"\n                network_factory={cls}{algorithm.upper()}Network,"
+    return textwrap.dedent(f'''\
         """Run stock Ray RLlib {algorithm.upper()} on {game}."""
         import argparse
         from pathlib import Path
@@ -219,21 +288,30 @@ def _ray_train(game: str, algorithm: str) -> str:
         from Core.ray_policies import load_policy_from_checkpoint
         from Core.ray_training import print_metrics, train
         from Games.{game}.ray.env_wrapper import make_env_creator
-        from Games.{game}.ray.{algorithm}.config import build_config
+        from Games.{game}.ray.{algorithm}.feature_builder import {cls}{algorithm.upper()}FeatureBuilder
+        {network_import}from Games.{game}.ray.{algorithm}.config import build_config
 
 
         def main():
             parser = argparse.ArgumentParser()
             parser.add_argument("--iterations", type=int, default=1)
+            parser.add_argument("--num-env-runners", type=int, default=0)
             parser.add_argument("--frozen-opponent", action="store_true")
             parser.add_argument("--opponent-policy", action="append", default=None)
             parser.add_argument("--opponent-checkpoint", type=Path, action="append", default=[])
             parser.add_argument("--checkpoint-dir", type=Path, default=None)
             args = parser.parse_args()
             policy_ids = tuple(args.opponent_policy or ("opponent",))
-            register_env("{game}_ray", make_env_creator())
+            register_env("{game}_ray", make_env_creator(
+                feature_builder_factory={cls}{algorithm.upper()}FeatureBuilder))
             ray.init(ignore_reinit_error=True, include_dashboard=False)
-            algorithm = build_config(args.frozen_opponent, policy_ids).build_algo()
+            algorithm = build_config(
+                env_name="{game}_ray",
+                num_env_runners=args.num_env_runners,
+                frozen_opponent=args.frozen_opponent,
+                opponent_policy_ids=policy_ids,
+                {network_argument}
+            ).build_algo()
             try:
                 if args.opponent_checkpoint:
                     if not args.frozen_opponent or len(args.opponent_checkpoint) != len(policy_ids):
@@ -818,6 +896,10 @@ def scaffold(game: str, puzzle_id: str, conda_env: str, overwrite: bool = False)
             _feature_builder(game, algorithm),
             overwrite,
         )
+        if algorithm == "dqn":
+            _write(algorithm_dir / "modules.py", _dqn_network(game), overwrite)
+        elif algorithm == "sac":
+            _write(algorithm_dir / "modules.py", _sac_network(game), overwrite)
         _write(algorithm_dir / "config.py", _ray_config(game, algorithm), overwrite)
         _write(algorithm_dir / "train.py", _ray_train(game, algorithm), overwrite)
     _write(game_engine_dir / "__init__.py", _game_init(game), overwrite)

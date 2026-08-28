@@ -61,16 +61,25 @@ def _carve_path(grid: Grid, src: Coord, dst: Coord, w: int) -> None:
 		cur = prev[cur]  # type: ignore[assignment]
 
 
-def make_grid(rng: random.Random, map_height: int | None = None) -> Grid:
+def make_grid(
+	rng: random.Random,
+	map_height: int | None = None,
+	map_width: int | None = None,
+	wall_ratio: float | None = None,
+	protein_ratio: float | None = None,
+) -> Grid:
 	"""Generate a random vertically-symmetric game grid.
 
 	Guarantees:
 	- Left-right (vertical-axis) symmetry.
 	- At least one open path between the two spawn points.
 	- All placed proteins are reachable from the nearest spawn.
+
+	``wall_ratio``/``protein_ratio`` fix the obstacle/protein density as a
+	fraction of the left half's cells instead of the default randomised range.
 	"""
 	h = int(map_height) if map_height is not None else rng.randint(8, 12)
-	w = h * 2
+	w = int(map_width) if map_width is not None else h * 2
 	grid = Grid(w, h)
 
 	# Spawn positions: player 0 top-left area, player 1 its vertical mirror.
@@ -84,8 +93,11 @@ def make_grid(rng: random.Random, map_height: int | None = None) -> Grid:
 	rng.shuffle(left_half)
 
 	# Place obstacles, skipping spawn cells and keeping ratio moderate.
-	max_obstacle_ratio = 0.35
-	obstacle_budget = int(rng.random() * max_obstacle_ratio * len(left_half))
+	if wall_ratio is not None:
+		obstacle_budget = int(float(wall_ratio) * len(left_half))
+	else:
+		max_obstacle_ratio = 0.35
+		obstacle_budget = int(rng.random() * max_obstacle_ratio * len(left_half))
 	obstacle_coords: Set[Coord] = set()
 	for coord in left_half:
 		if len(obstacle_coords) >= obstacle_budget:
@@ -107,8 +119,11 @@ def make_grid(rng: random.Random, map_height: int | None = None) -> Grid:
 	reachable_from_spawn = _bfs_reachable(grid, spawn)
 
 	# Place proteins on the left half only in cells reachable from spawn.
-	max_protein_ratio = 0.15
-	protein_budget = int(rng.random() * max_protein_ratio * len(left_half)) + 4
+	if protein_ratio is not None:
+		protein_budget = int(float(protein_ratio) * len(left_half)) + 4
+	else:
+		max_protein_ratio = 0.15
+		protein_budget = int(rng.random() * max_protein_ratio * len(left_half)) + 4
 	candidates = [
 		c for c in left_half
 		if c not in obstacle_coords and c != spawn and c in reachable_from_spawn

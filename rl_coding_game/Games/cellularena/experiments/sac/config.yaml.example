@@ -1,0 +1,37 @@
+# Cellularena SAC CPU profile. Copy to config.yaml for a run.
+run:
+  map_height: 8
+  #map_width: 16  # Defaults to map_height * 2 when unset.
+  wall_ratio: 0.2  # Fraction of the left half turned into obstacles; random 0-0.35 when unset.
+  protein_ratio: 0.4  # Fraction of the left half seeded with proteins; random 0-0.15 when unset.
+  obs_history_steps: 1
+  reward_shaping: false
+  debug: false  # Keep Ray available after training for interactive debugging.
+  iterations: 500
+  checkpoint_interval: 10
+  replay_interval: 10
+  evaluation_interval: 10
+  evaluation_num_env_runners: 1
+  evaluation_duration: 10
+  evaluation_duration_unit: episodes
+  evaluation_explore: false
+  num_env_runners: 10
+  num_cpus_per_env_runner: 1
+  num_cpus_for_main_process: 2
+  num_gpus: 0
+league_pool:
+  enabled: true
+  max_size: 10
+sac:
+  train_batch_size: 256
+  replay_type: MultiAgentPrioritizedEpisodeReplayBuffer
+  #num_steps_sampled_before_learning_starts: 5000
+  #gamma: 0.99
+  #actor_lr: 0.00005
+  #critic_lr: 0.00005
+  #target_entropy: 2.5  # Defaults to 0.5 * log(4033) if unset; RLlib's "auto" is -1 for any Discrete space.
+  #initial_alpha: 1.0
+  #alpha_lr: 0.0001
+  replay_capacity: 10000
+  #replay_alpha: 0.6
+  #replay_beta: 0.4

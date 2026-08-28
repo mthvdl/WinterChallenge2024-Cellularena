@@ -6,29 +6,20 @@ from numbers import Real
 from typing import Any
 
 
-_METRIC_KEYS = (
-	"training_iteration",
-	"num_env_steps_sampled_lifetime",
-	"num_env_steps_trained_lifetime",
-	"episode_return_mean",
-	"episode_len_mean",
-	"loss",
-	"evaluation/episode_return_mean",
-)
-
-
 def scalar_metrics(result: Mapping[str, Any]) -> dict[str, float]:
-	"""Extract numeric top-level and nested evaluation metrics from a Ray result."""
+	"""Extract numeric scalar metrics from a Ray result, including nested values."""
 	metrics: dict[str, float] = {}
-	for key in _METRIC_KEYS:
-		value: Any = result
-		for part in key.split("/"):
-			if not isinstance(value, Mapping) or part not in value:
-				value = None
-				break
-			value = value[part]
-		if isinstance(value, Real) and not isinstance(value, bool):
-			metrics[key] = float(value)
+
+	def visit(value: Any, prefix: str = "") -> None:
+		if isinstance(value, Mapping):
+			for key, child in value.items():
+				child_key = str(key)
+				path = f"{prefix}/{child_key}" if prefix else child_key
+				visit(child, path)
+		elif prefix and isinstance(value, Real) and not isinstance(value, bool):
+			metrics[prefix] = float(value)
+
+	visit(result)
 	return metrics
 
 

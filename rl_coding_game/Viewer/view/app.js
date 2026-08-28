@@ -12,6 +12,11 @@ const prevBtn = document.getElementById('prevBtn')
 const nextBtn = document.getElementById('nextBtn')
 const speedSel = document.getElementById('speedSel')
 const turnRange = document.getElementById('turnRange')
+const replayRefreshBtn = document.getElementById('rpRefreshBtn')
+const replayStatus = document.getElementById('rp-status')
+const replayList = document.getElementById('rp-list')
+const experimentSelect = document.getElementById('rp-experiment')
+const resultBadge = document.getElementById('resultBadge')
 
 const app = new PIXI.Application({
   width: WIDTH,
@@ -209,6 +214,43 @@ function resetPlaybackUi() {
   playPauseBtn.textContent = paused ? 'Play' : 'Pause'
 }
 
+// Mirrors Game._final_rewards() tie-break order: organ count, then protein total.
+function computeResult(finalState, players) {
+  if (!finalState || !finalState.organs) {
+    return null
+  }
+  const organCounts = [0, 1].map((idx) => (finalState.organs[idx] || []).length)
+  const proteinTotals = [0, 1].map((idx) => (finalState.storage[idx] || []).reduce((sum, v) => sum + v, 0))
+
+  let winnerIdx = null
+  if (organCounts[0] !== organCounts[1]) {
+    winnerIdx = organCounts[0] > organCounts[1] ? 0 : 1
+  } else if (proteinTotals[0] !== proteinTotals[1]) {
+    winnerIdx = proteinTotals[0] > proteinTotals[1] ? 0 : 1
+  }
+  return { winnerIdx, organCounts, proteinTotals, players }
+}
+
+function updateResultBadge(result) {
+  if (!result) {
+    resultBadge.style.display = 'none'
+    return
+  }
+  const { winnerIdx, organCounts, players } = result
+  resultBadge.style.display = 'inline-block'
+  if (winnerIdx === null) {
+    resultBadge.textContent = `Draw (${organCounts[0]} - ${organCounts[1]})`
+    resultBadge.style.color = 'var(--muted)'
+    resultBadge.style.borderColor = 'var(--border)'
+  } else {
+    const loserIdx = winnerIdx === 0 ? 1 : 0
+    const winnerColor = winnerIdx === 0 ? '#fd5901' : '#33adcc'
+    resultBadge.textContent = `Winner: ${players[winnerIdx].name} (${organCounts[winnerIdx]} - ${organCounts[loserIdx]})`
+    resultBadge.style.color = winnerColor
+    resultBadge.style.borderColor = winnerColor
+  }
+}
+
 function updateScene() {
   if (!viewModule || states.length === 0) {
     return
@@ -223,6 +265,7 @@ function updateScene() {
 
 async function loadReplayObject(rawReplay) {
   setStatus('Loading assets...')
+  resultBadge.style.display = 'none'
   await loadAssets()
 
   const { globalRaw, frameRaws, players } = parseReplay(rawReplay)
@@ -250,6 +293,8 @@ async function loadReplayObject(rawReplay) {
 
   viewModule.reinitScene(app.stage, { width: WIDTH, height: HEIGHT, oversampling: 1 })
 
+  updateResultBadge(computeResult(states[states.length - 1], players))
+
   frameIndex = 0
   frameProgress = 1
   frameElapsedMs = FRAME_DURATION
@@ -272,6 +317,66 @@ async function loadReplayPath(path) {
   const json = await response.json()
   await loadReplayObject(json)
 }
+
+async function refreshCheckpointReplays() {
+  replayStatus.textContent = 'Loading...'
+  try {
+    const response = await fetch('/api/replays')
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const data = await response.json()
+    const replays = Array.isArray(data.replays) ? data.replays : []
+    const selectedExperiment = experimentSelect.value
+    const experiments = Array.isArray(data.experiments) ? data.experiments : []
+    experimentSelect.replaceChildren()
+    const allOption = document.createElement('option')
+    allOption.value = ''
+    allOption.textContent = 'All experiments'
+    experimentSelect.appendChild(allOption)
+    experiments.forEach((experiment) => {
+      const option = document.createElement('option')
+      option.value = experiment
+      option.textContent = experiment
+      experimentSelect.appendChild(option)
+    })
+    experimentSelect.value = experiments.includes(selectedExperiment) ? selectedExperiment : ''
+    const visibleReplays = experimentSelect.value
+      ? replays.filter((replay) => replay.experiment === experimentSelect.value)
+      : replays
+    replayList.replaceChildren()
+    if (visibleReplays.length === 0) {
+      replayStatus.textContent = experimentSelect.value ? 'No replays in experiment' : 'No replays yet'
+      return
+    }
+
+    replayStatus.textContent = `${visibleReplays.length} replay${visibleReplays.length === 1 ? '' : 's'}`
+    visibleReplays.sort((left, right) => right.mtime - left.mtime)
+    visibleReplays.forEach((replay) => {
+      const item = document.createElement('li')
+      item.className = 'rp-item'
+      item.title = `Load ${replay.path}`
+      item.innerHTML = `<div class="rp-name">${replay.name}</div><div class="rp-meta">${replay.experiment} &middot; ${replay.turns} turns</div>`
+      item.addEventListener('click', async () => {
+        document.querySelectorAll('.rp-item.active').forEach((active) => active.classList.remove('active'))
+        item.classList.add('active')
+        try {
+          setStatus(`Loading ${replay.name} ...`)
+          await loadReplayPath(`/api/replay-data/${replay.path.split('/').map(encodeURIComponent).join('/')}`)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          setStatus(`Replay load error: ${message}`)
+        }
+      })
+      replayList.appendChild(item)
+    })
+  } catch (err) {
+    replayList.replaceChildren()
+    replayStatus.textContent = 'Replay service unavailable'
+  }
+}
+
+experimentSelect.addEventListener('change', refreshCheckpointReplays)
 
 async function convertReplayViaEngine(rawReplay) {
   const endpoint = await resolveConvertApiEndpoint()
@@ -430,9 +535,15 @@ fileInput.addEventListener('change', async (event) => {
     setStatus(`Reading ${file.name} ...`)
     const raw = await file.text()
     const json = JSON.parse(raw)
-    setStatus('Simulating replay in engine ...')
-    const viewerReplay = await convertReplayViaEngine(json)
-    await loadReplayObject(viewerReplay)
+    const isViewerReplay = json && Array.isArray(json.frames) && json.frames[0]
+      && typeof json.frames[0].data === 'string'
+    if (isViewerReplay) {
+      await loadReplayObject(json)
+    } else {
+      setStatus('Simulating replay in engine ...')
+      const viewerReplay = await convertReplayViaEngine(json)
+      await loadReplayObject(viewerReplay)
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     setStatus(`Replay parse error: ${message}`)
@@ -443,3 +554,5 @@ setStatus('Use Load Replay to simulate raw/core replay and render without saving
 
 // expose for the checkpoint replay sidebar
 window.loadCheckpointReplay = loadReplayPath
+replayRefreshBtn.addEventListener('click', refreshCheckpointReplays)
+refreshCheckpointReplays()

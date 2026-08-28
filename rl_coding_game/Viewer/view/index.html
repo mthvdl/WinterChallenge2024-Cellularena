@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/view/">
   <title>Cellularena Viewer</title>
   <style>
     :root {
@@ -22,12 +23,13 @@
 
     body {
       margin: 0;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
       background: radial-gradient(circle at 20% 10%, #1f2533 0%, var(--bg) 55%);
       color: var(--text);
       font-family: "Segoe UI", Tahoma, sans-serif;
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
       grid-template-columns: 220px 1fr 260px;
     }
 
@@ -71,6 +73,15 @@
       min-width: 200px;
     }
 
+    .result-badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
     .stage-wrap {
       grid-column: 2;
       grid-row: 2;
@@ -78,6 +89,7 @@
       place-items: center;
       overflow: auto;
       padding: 10px;
+      min-height: 0;
     }
 
     #stage {
@@ -107,11 +119,12 @@
       grid-row: 2;
       background: var(--panel);
       border-right: 1px solid var(--border);
-      overflow-y: auto;
+      overflow: hidden;
       padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 6px;
+      min-height: 0;
     }
     .rp-header {
       display: flex;
@@ -135,7 +148,7 @@
       padding: 0;
     }
     .rp-status { font-size: 11px; color: var(--muted); font-style: italic; }
-    #rp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+    #rp-list { list-style: none; margin: 0; padding: 0 4px 0 0; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
     .rp-item {
       padding: 6px 8px;
       border-radius: 6px;
@@ -159,6 +172,7 @@
       border-left: 1px solid var(--border);
       overflow-y: auto; padding: 8px;
       display: flex; flex-direction: column; gap: 8px;
+      min-height: 0;
       font-family: "Cascadia Code", Consolas, monospace;
       font-size: 12px;
     }
@@ -166,8 +180,9 @@
     .ac-turn { color: var(--muted); font-size: 11px; }
     .ac-player { margin-bottom: 6px; }
     .ac-player-name { font-weight: 700; font-size: 11px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ac-player-name.p0 { color: #5bc4ff; }
-    .ac-player-name.p1 { color: #ff7043; }
+    /* player 0 renders orange, player 1 renders blue (see ViewModule pIdx mapping) */
+    .ac-player-name.p0 { color: #fd5901; }
+    .ac-player-name.p1 { color: #33adcc; }
     .ac-cmd { background: var(--panel-alt); border-radius: 4px; padding: 4px 6px; word-break: break-all; white-space: pre-wrap; }
     .ac-wait { color: var(--muted); font-style: italic; }
     .ac-empty { color: var(--muted); font-style: italic; font-size: 11px; }
@@ -198,6 +213,7 @@
       <input id="turnRange" type="range" min="0" max="0" value="0">
     </label>
     <span id="status" class="status">No replay loaded</span>
+    <span id="resultBadge" class="result-badge" style="display:none"></span>
   </div>
 
   <div class="stage-wrap">
@@ -209,6 +225,9 @@
       <span>Checkpoints</span>
       <button id="rpRefreshBtn" title="Refresh">&#x21BB;</button>
     </div>
+    <select id="rp-experiment" aria-label="Experiment">
+      <option value="">All experiments</option>
+    </select>
     <div id="rp-status" class="rp-status">Loading…</div>
     <ul id="rp-list"></ul>
   </aside>
@@ -223,48 +242,6 @@
   <script type="module" src="./app.js"></script>
   <script>
     (function () {
-      const list = document.getElementById('rp-list')
-      const status = document.getElementById('rp-status')
-      document.getElementById('rpRefreshBtn').addEventListener('click', fetchReplays)
-      let activeItem = null
-
-      async function fetchReplays() {
-        try {
-          const res = await fetch('/api/replays')
-          if (!res.ok) { status.textContent = 'Start viewer with --replays-dir to enable'; return }
-          const data = await res.json()
-          const replays = data.replays || []
-          replays.sort((a, b) => b.mtime - a.mtime)
-          renderList(replays)
-          status.textContent = replays.length
-            ? `${replays.length} replay(s) · auto-refresh 15s`
-            : 'No replays yet — waiting for first checkpoint…'
-        } catch { status.textContent = 'Cannot reach /api/replays' }
-      }
-
-      function renderList(replays) {
-        const now = Date.now() / 1000
-        list.innerHTML = ''
-        for (const r of replays) {
-          const li = document.createElement('li')
-          li.className = 'rp-item'
-          const isNew = (now - r.mtime) < 120
-          const label = r.name.replace('.viewer.json', '').replace(/_/g, '_\u200b')
-          li.innerHTML = `<div class="rp-name">${label}${isNew ? '<span class="rp-new">NEW</span>' : ''}</div><div class="rp-meta">${r.turns} turns &middot; ${new Date(r.mtime * 1000).toLocaleTimeString()}</div>`
-          li.addEventListener('click', () => {
-            if (activeItem) activeItem.classList.remove('active')
-            activeItem = li; li.classList.add('active')
-            if (typeof window.loadCheckpointReplay === 'function')
-              window.loadCheckpointReplay('/api/replay-data/' + encodeURIComponent(r.name))
-          })
-          list.appendChild(li)
-        }
-      }
-
-      fetchReplays()
-      setInterval(fetchReplays, 15000)
-    })()
-    ;(function () {
       const body = document.getElementById('ac-body')
       window.addEventListener('acTurnChanged', function (e) {
         const fi = e.detail.frameIndex

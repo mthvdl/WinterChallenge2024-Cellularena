@@ -16,6 +16,7 @@ Ask the user **only** what you don't already know.
 Required inputs:
 - Game URL
 - Conda environment name to create/use for this workflow
+- Board symmetry and player-perspective transform
 
 **Ask:**
 > What is the CodingGame URL for the game you want to train on?
@@ -23,6 +24,13 @@ Required inputs:
 
 > What conda environment name should I create/use for this game?
 > (e.g. `cellularena`)
+
+> What board symmetry does the game use between players, and how should an
+> observation be transformed into the active player's perspective?
+> Specify the spatial transform (for example: none, left-right, top-bottom,
+> or 180-degree rotation) and the direction remapping (N/E/S/W). If unknown,
+> inspect the game rules, replay coordinates, and map generator before
+> implementing observations.
 
 Then derive everything else automatically:
 - **Puzzle slug** = last path segment of the URL (e.g. `fall-challenge-2024`)
@@ -34,6 +42,15 @@ If the user already provided the conda env name, use it directly — do not ask 
 **Only ask if the user wants to override defaults:**
 - Local game name (default: derived from URL)
 - Algorithm: Rainbow DQN (default) or PPO?
+
+Save the answer as the canonical game-level contract at:
+`rl_coding_game/Games/<GAME>/symmetry.md`.
+Create it before implementing map generation or observations, and require all
+components that need player-relative coordinates to read it, including game
+generation, replay conversion, self-play, and inference.
+Document the board transform for each player perspective, coordinate origin,
+N/E/S/W mapping, and whether player-indexed channels, storage, actions, and
+replays are swapped.
 
 ---
 
@@ -52,7 +69,7 @@ conda create -n <CONDA_ENV> python=3.11 -y
 conda run -n <CONDA_ENV> python -m pip install -r requirements.txt
 ```
 
-Persist the chosen env by scaffolding with `--conda-env <CONDA_ENV>` (this updates `rl_coding_game/games/<GAME>/env.sh` with `CONDA_ENV=<CONDA_ENV>`).
+Persist the chosen env by scaffolding with `--conda-env <CONDA_ENV>` (this updates `rl_coding_game/Games/<GAME>/env.sh` with `CONDA_ENV=<CONDA_ENV>`).
 
 ---
 
@@ -61,24 +78,27 @@ Persist the chosen env by scaffolding with `--conda-env <CONDA_ENV>` (this updat
 This is the first game-onboarding action after env setup. Run it before scaffolding or replay download.
 
 ```bash
-cd /path/to/repo
-conda run -n <CONDA_ENV> python rl_coding_game/download_rules.py \
+cd /path/to/repo/rl_coding_game
+conda run -n <CONDA_ENV> python Core/cli/download_rules.py \
     --url <GAME_URL> \
     --game <GAME>
 ```
 
 Rules are saved to:
-- `rl_coding_game/games/<GAME>/rules.md` (primary, implementation notes)
+- `rl_coding_game/Games/<GAME>/rules.md` (primary, implementation notes)
 - `rl_coding_game/data/games/<GAME>/rules.md` (shared data copy)
 - `rl_coding_game/data/games/<GAME>/rules.html` (raw)
 - `rl_coding_game/data/games/<GAME>/rules.txt` (plain text)
 
-Before writing `game.py`, read `rl_coding_game/games/<GAME>/rules.md` and extract these sections explicitly:
+Before writing `game.py`, read `rl_coding_game/Games/<GAME>/rules.md` and extract these sections explicitly:
 - Endgame rules (termination + victory/defeat)
 - Order of actions / turn resolution order
 - Constraints (input limits, time, map/turn limits)
 
 Use those as acceptance criteria for engine behavior.
+
+Also read `rl_coding_game/Games/<GAME>/symmetry.md` and use it as the single
+source of truth for symmetric map generation and player-relative transforms.
 
 > If the API fails, open the game page in a browser and copy the rules manually.
 
@@ -87,18 +107,21 @@ Use those as acceptance criteria for engine behavior.
 ## Step 3 — Scaffold the game
 
 ```bash
-cd /path/to/repo
-conda run -n <CONDA_ENV> python rl_coding_game/scaffold_game.py \
+cd /path/to/repo/rl_coding_game
+conda run -n <CONDA_ENV> python Core/cli/scaffold_game.py \
     --puzzle-id <PUZZLE_ID> \
     --game <GAME> \
     --conda-env <CONDA_ENV>
 ```
 
 This creates:
-- `rl_coding_game/games/<GAME>/` — env, factories, offline adapter, game engine stubs
-- `rl_coding_game/games/<GAME>/ray/dqn/feature_builder.py` — no-op DQN feature-builder class
-- `rl_coding_game/games/<GAME>/ray/sac/feature_builder.py` — no-op SAC feature-builder class
-- `rl_coding_game/games/<GAME>/policy/action_mask.py` — no-op discrete action-mask-builder class
+- `rl_coding_game/Games/<GAME>/` — env, factories, offline adapter, game engine stubs
+- `rl_coding_game/Games/<GAME>/ray/dqn/feature_builder.py` — no-op DQN feature-builder class
+- `rl_coding_game/Games/<GAME>/ray/sac/feature_builder.py` — no-op SAC feature-builder class
+- `rl_coding_game/Games/<GAME>/ray/dqn/modules.py` — no-op DQN network customization class with an uncommentable model example
+- `rl_coding_game/Games/<GAME>/ray/sac/modules.py` — no-op SAC network customization class for RLlib's current RLModule/catalog API
+- `rl_coding_game/Games/<GAME>/policy/action_mask.py` — no-op discrete action-mask-builder class
+- `rl_coding_game/Games/<GAME>/bots/action_mapper.py` — protocol command mapping stub
 - `rl_coding_game/data/games/<GAME>/replays/` — empty replay store
 - `rl_coding_game/test_<GAME>.py` — smoke tests
 
@@ -107,7 +130,8 @@ This creates:
 ## Step 4 — Download expert replays
 
 ```bash
-conda run -n <CONDA_ENV> python rl_coding_game/download_games.py \
+cd /path/to/repo/rl_coding_game
+conda run -n <CONDA_ENV> python Core/cli/download_games.py \
     --game <GAME> \
     --puzzle-id <PUZZLE_ID> \
     --top 10 \
@@ -131,7 +155,7 @@ Non-negotiable architecture rules:
 - Action decoding/formatting to protocol commands belongs in an action mapper/runtime adapter.
 
 ### 4a. Core game engine
-File: `rl_coding_game/games/<GAME>/game/game.py`
+File: `rl_coding_game/Games/<GAME>/engine/game.py`
 
 Key methods to implement:
 - `reset()` — set up initial board/state
@@ -142,18 +166,27 @@ Key methods to implement:
 Reference: `games/cellularena/game/game.py`
 
 ### 4b. Replay loader
-File: `rl_coding_game/games/<GAME>/game/replay_loader.py`
+File: `rl_coding_game/Games/<GAME>/engine/replay_loader.py`
 
 - `load_replay(path)` — parse CodingGame JSON frames into `Replay` → `[ReplayTurn]`
 - Each `ReplayTurn` has `commands: List[List[str]]` (stdout per player)
 
 Reference: `games/cellularena/game/replay_loader.py`
 
+### 4c. Symmetry contract
+
+Keep the engine's raw coordinates protocol-faithful. Apply the transform from
+`Games/<GAME>/symmetry.md` only in map generation, replay/self-play adapters,
+and algorithm-specific observation builders where a player-relative view is
+required. Add a regression test with an asymmetric marker to verify both the
+spatial axis and direction remapping; comparing two identically transformed
+player observations is not sufficient.
+
 ---
 
 ## Step 6 — Implement observation and action spaces
 
-File: `rl_coding_game/games/<GAME>/env.py`
+File: `rl_coding_game/Games/<GAME>/engine/env.py`
 
 Key methods to implement:
 - `observation_space(agent)` — define obs space (Dict, Box, etc.)
@@ -163,7 +196,9 @@ Key methods to implement:
 **Design guidance:**
 - Prefer `spaces.Dict` with a `"grid"` Box for spatial games and a `"storage"` Box for scalar state
 - Normalize float features to [0, 1]
-- Make the observation symmetric: player_0 perspective = same encoding as player_1 perspective (swap player indices)
+- Make the observation symmetric using the transform in `symmetry.md`:
+    player_0 perspective = same encoding as player_1 perspective after the
+    documented spatial and direction transform and player-index swap.
 - Reference: `games/cellularena/env.py`
 
 ---
@@ -172,8 +207,8 @@ Key methods to implement:
 
 Create one feature-builder class for every supported algorithm:
 
-- `rl_coding_game/games/<GAME>/ray/dqn/feature_builder.py`
-- `rl_coding_game/games/<GAME>/ray/sac/feature_builder.py`
+- `rl_coding_game/Games/<GAME>/ray/dqn/feature_builder.py`
+- `rl_coding_game/Games/<GAME>/ray/sac/feature_builder.py`
 
 For now, only discrete action spaces are supported. Do not scaffold or onboard
 games whose action space is continuous.
@@ -196,52 +231,115 @@ the scaffold implementation. The classes are extension points for:
 
 The agent must always run through the selected algorithm's feature builder in both:
 - Learning (training rollouts and updates)
-- Inference (runtime/CodingGame loop)
+- Inference (runtime/CodingGame loop), once the inference runner is implemented
 
-## Step 6c — Create the action-mask builder
+When a builder changes the raw observation shape, it must also expose a matching
+Gymnasium `observation_space` so the wrapper and RLlib use the transformed shape.
+
+## Step 6c — Create and wire the SAC network customization hook
+
+When SAC is supported, keep the generated no-op class wired into the SAC
+configuration and training entry point. The class must preserve RLlib's
+current default RLModule when unchanged. Custom encoders and heads belong in a
+`Catalog` subclass; do not use `SACTorchModel`, `ModelCatalog`, `custom_model`,
+or deprecated policy/Q model configuration dictionaries.
+
+File: `rl_coding_game/Games/<GAME>/ray/sac/modules.py`
+
+```python
+from ray.rllib.algorithms.sac import SACConfig
+
+
+class <Game>SACNetwork:
+    """Customize RLlib's current SAC RLModule/catalog here."""
+
+    def customize(self, config: SACConfig) -> SACConfig:
+        # Install a custom RLModuleSpec(catalog_class=...) here when needed.
+        return config
+```
+
+The SAC config must accept a `network_factory`, call
+`network_factory().customize(config)`, and return the customized config. The
+SAC training entry point must pass the generated `<Game>SACNetwork` factory to
+`build_config`. `policy_model_config` configures the actor; `q_model_config`
+configures both critics. Run the SAC one-iteration smoke test after changing
+the network.
+
+## Step 6d — Create and wire the DQN network customization hook
+
+When Rainbow DQN is supported, keep the generated no-op class wired into the
+DQN configuration and training entry point:
+
+File: `rl_coding_game/Games/<GAME>/ray/dqn/modules.py`
+
+```python
+from ray.rllib.algorithms.dqn import DQNConfig
+
+
+class <Game>DQNNetwork:
+    def customize(self, config: DQNConfig) -> DQNConfig:
+        # Uncomment this block to configure the shared DQN encoder and head.
+        # return config.training(
+        #     model={
+        #         "fcnet_hiddens": [512, 256],
+        #         "fcnet_activation": "relu",
+        #         "post_fcnet_hiddens": [256],
+        #     },
+        # )
+        return config
+```
+
+The DQN config must accept a `network_factory`, call
+`network_factory().customize(config)`, and return the customized config. The
+DQN training entry point must pass the generated `<Game>DQNNetwork` factory to
+`build_config`. The `model` mapping configures the shared encoder and output
+head. Run the DQN one-iteration smoke test after changing the network.
+
+## Step 6e — Create the action-mask builder
 
 Create an algorithm-independent placeholder:
 
-File: `rl_coding_game/games/<GAME>/policy/action_mask.py`
+File: `rl_coding_game/Games/<GAME>/policy/action_mask.py`
 
 ```python
 import numpy as np
 
 
 class ActionMaskBuilder:
-    def __init__(self, action_count):
-        self.action_count = action_count
-
-    def build(self, game, player_idx):
+    def build(self, game, player_idx, action_count):
         """Return an all-valid mask until customized for the game."""
-        return np.ones(self.action_count, dtype=np.float32)
+        return np.ones(action_count, dtype=np.float32)
 ```
 
 The scaffold must not invent game-specific legality rules. The placeholder
 class only establishes where the implementation belongs. Once implemented,
-the same mask builder must be used by:
+the same mask builder must be explicitly wired into:
 
 - The PettingZoo/RLlib wrapper during training
-- The exported CodingGame inference bot
+- The CodingGame inference runner, if one is implemented
 
 For discrete games, the mask length must equal `action_space.n`, and the policy
 must apply it to action logits before categorical sampling.
 
-## Step 6d — Add action mapper (required)
+## Step 6f — Add action mapper (required)
 
-File: `rl_coding_game/games/<GAME>/bots/action_mapper.py`
+File: `rl_coding_game/Games/<GAME>/bots/action_mapper.py`
 
 Implement action conversion from agent output to protocol commands:
 - Input: model action tensor/array
 - Output: exact protocol commands (`GROW ...`, `SPORE ...`, `WAIT`)
 
-Reference: `games/cellularena/bots/action_mapper.py`
+Reference: `Games/cellularena/bots/action_mapper.py` (when available)
+
+The scaffold creates the mapper stub, but does not create a complete inference
+runner or automatically connect it to `export_to_codingame.py`. Wire those
+pieces together when deploying a trained agent.
 
 ---
 
 ## Step 7 — Implement offline replay adapter (optional but recommended)
 
-File: `rl_coding_game/games/<GAME>/offline_replay_adapter.py`
+File: `rl_coding_game/Games/<GAME>/engine/offline_replay_adapter.py`
 
 Key method to implement:
 - `iter_transitions(replay_path)` — yield `Transition` objects from a replay file
@@ -249,14 +347,14 @@ Key method to implement:
 
 This enables offline pretraining from expert replays before self-play.
 
-Reference: `games/cellularena/offline_replay_adapter.py`
+Reference: `Games/cellularena/engine/offline_replay_adapter.py`
 
 ---
 
 ## Step 8 — Validate the game engine
 
 ```bash
-conda run -n <CONDA_ENV> python rl_coding_game/validate_engine.py \
+conda run -n <CONDA_ENV> python rl_coding_game/Games/<GAME>/engine/tools/validate_engine.py \
     --game <GAME>
 ```
 

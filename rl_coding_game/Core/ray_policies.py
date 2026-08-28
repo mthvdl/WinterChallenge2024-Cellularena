@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from hashlib import sha256
+import json
+from pathlib import Path
 from typing import Any
 
 from ray.rllib.policy.policy import PolicySpec
@@ -65,17 +67,34 @@ def policy_setup(
 def load_policy_from_checkpoint(
 	algorithm: Any,
 	checkpoint: str,
-	source_policy_id: str = "shared",
+	source_policy_id: str | None = None,
 	target_policy_id: str = "opponent",
 ) -> None:
-	"""Copy one policy's weights from a checkpoint into a target algorithm."""
+	"""Copy one policy's weights from a checkpoint into a target algorithm.
+
+	Loads only the requested policy's `RLModule` directly (no full `Algorithm`/
+	env-runner rebuild), which is both faster and accepts relative paths.
+	"""
+	from ray.rllib.core.rl_module.rl_module import RLModule
+
 	if target_policy_id not in algorithm.config.policies:
 		raise ValueError(f"Unknown target policy: {target_policy_id}")
-	source_algorithm = type(algorithm).from_checkpoint(checkpoint)
-	try:
-		weights = source_algorithm.get_weights([source_policy_id])
-		if source_policy_id not in weights:
-			raise ValueError(f"Checkpoint has no policy named {source_policy_id!r}.")
-		algorithm.set_weights({target_policy_id: weights[source_policy_id]})
-	finally:
-		source_algorithm.stop()
+	checkpoint_path = Path(checkpoint).resolve()
+	rl_module_root = checkpoint_path / "learner_group" / "learner" / "rl_module"
+	if source_policy_id is None:
+		manifest_path = checkpoint_path / "league_manifest.json"
+		if manifest_path.is_file():
+			manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+			source_policy_id = manifest.get("source_policy_id")
+		if not source_policy_id:
+			for candidate in ("shared", "learner"):
+				if (rl_module_root / candidate).is_dir():
+					source_policy_id = candidate
+					break
+	if not source_policy_id:
+		raise ValueError("Checkpoint has no supported policy (expected 'shared' or 'learner').")
+	source_path = rl_module_root / source_policy_id
+	if not source_path.is_dir():
+		raise ValueError(f"Checkpoint has no policy named {source_policy_id!r}.")
+	module = RLModule.from_checkpoint(str(source_path))
+	algorithm.set_weights({target_policy_id: module.get_state()})

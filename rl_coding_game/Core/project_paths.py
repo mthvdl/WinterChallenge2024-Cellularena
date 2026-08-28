@@ -4,9 +4,9 @@ Layout
 ------
 - Preferred (game-first):
     Games/<game>/experiments/shared/replays
-    Games/<game>/experiments/<experiment>/runs
-    Games/<game>/experiments/<experiment>/replay_store
-    Games/<game>/experiments/<experiment>/league_pool
+    Games/<game>/experiments/<algorithm>/<experiment>/checkpoints
+    Games/<game>/experiments/<algorithm>/<experiment>/league_pool
+    Games/<game>/experiments/<algorithm>/<experiment>/replays
 """
 from __future__ import annotations
 
@@ -28,20 +28,28 @@ def shared_replays_dir(game: str) -> Path:
     return shared_game_root(game) / "replays"
 
 
-def experiment_root(game: str, experiment: str) -> Path:
-    return game_root(game) / "experiments" / experiment
+def algorithm_experiments_root(game: str, algorithm: str) -> Path:
+    return game_root(game) / "experiments" / algorithm
 
 
-def experiment_run_dir(game: str, experiment: str) -> Path:
-    return experiment_root(game, experiment) / "runs"
+def algorithm_config_example(game: str, algorithm: str) -> Path:
+    return algorithm_experiments_root(game, algorithm) / "config.yaml.example"
 
 
-def experiment_replay_store_dir(game: str, experiment: str) -> Path:
-    return experiment_root(game, experiment) / "replay_store"
+def experiment_root(game: str, algorithm: str, experiment: str) -> Path:
+    return algorithm_experiments_root(game, algorithm) / experiment
 
 
-def experiment_snapshot_dir(game: str, experiment: str) -> Path:
-    return experiment_root(game, experiment) / "league_pool"
+def experiment_checkpoints_dir(game: str, algorithm: str, experiment: str) -> Path:
+    return experiment_root(game, algorithm, experiment) / "checkpoints"
+
+
+def experiment_replays_dir(game: str, algorithm: str, experiment: str) -> Path:
+    return experiment_root(game, algorithm, experiment) / "replays"
+
+
+def experiment_snapshot_dir(game: str, algorithm: str, experiment: str) -> Path:
+    return experiment_root(game, algorithm, experiment) / "league_pool"
 
 
 def ensure_dir(path: Path) -> Path:

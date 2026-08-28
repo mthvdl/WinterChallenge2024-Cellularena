@@ -39,7 +39,6 @@ By default, the environment adds policy-invariant potential-based shaping on
 non-terminal steps.
   +1.0 / -1.0 for clear win/loss
   +0.5 / -0.5 for tie-break by proteins
-	+2.0 / -2.0 when one player starves the opponent
    0.0         for a true tie
 """
 from __future__ import annotations
@@ -52,6 +51,7 @@ from gymnasium import spaces
 from pettingzoo import ParallelEnv
 
 from .obs import TemporalObservationBuilder
+from .grid import Protein
 from .game import (
 	ACTIONS_PER_ORG,
 	MAX_H,
@@ -77,6 +77,9 @@ class CellularenaEnv(ParallelEnv):
 		render_mode: Optional[str] = None,
 		obs_history_steps: int = 1,
 		map_height: Optional[int] = None,
+		map_width: Optional[int] = None,
+		wall_ratio: Optional[float] = None,
+		protein_ratio: Optional[float] = None,
 		reward_shaping: bool = True,
 		shaping_gamma: float = 0.99,
 	) -> None:
@@ -91,11 +94,14 @@ class CellularenaEnv(ParallelEnv):
 		self.render_mode = render_mode
 		self._seed = seed
 		self._map_height = map_height
+		self._map_width = map_width
+		self._wall_ratio = wall_ratio
+		self._protein_ratio = protein_ratio
 		self._reward_shaping = reward_shaping
 		self._shaping_gamma = float(shaping_gamma)
 		if not 0.0 < self._shaping_gamma <= 1.0:
 			raise ValueError("shaping_gamma must be in (0, 1].")
-		self._game = Game(seed, map_height=map_height)
+		self._game = self._make_game(seed)
 		self._potentials = [0.0, 0.0]
 		self._obs_builder = TemporalObservationBuilder(
 			history_steps=obs_history_steps,
@@ -118,6 +124,15 @@ class CellularenaEnv(ParallelEnv):
 	def max_episode_steps(self) -> int:
 		return MAX_TURNS
 
+	def _make_game(self, seed: Optional[int]) -> Game:
+		return Game(
+			seed,
+			map_height=self._map_height,
+			map_width=self._map_width,
+			wall_ratio=self._wall_ratio,
+			protein_ratio=self._protein_ratio,
+		)
+
 	# ------------------------------------------------------------------
 	# PettingZoo API
 	# ------------------------------------------------------------------
@@ -127,10 +142,7 @@ class CellularenaEnv(ParallelEnv):
 		seed: Optional[int] = None,
 		options: Optional[Dict] = None,
 	):
-		if seed is not None:
-			self._game = Game(seed, map_height=self._map_height)
-		else:
-			self._game = Game(self._seed, map_height=self._map_height)
+		self._game = self._make_game(seed if seed is not None else self._seed)
 
 		self._game.reset()
 		self._obs_builder.reset()
@@ -170,6 +182,8 @@ class CellularenaEnv(ParallelEnv):
 		terminations: Dict[str, bool] = {a: done for a in self.possible_agents}
 		truncations: Dict[str, bool] = {a: False for a in self.possible_agents}
 		infos: Dict[str, Any] = {a: {} for a in self.possible_agents}
+		if done:
+			infos = self._episode_infos()
 
 		if done:
 			self.agents = []
@@ -178,6 +192,23 @@ class CellularenaEnv(ParallelEnv):
 			observations = {a: self._get_obs(self._agent_to_idx[a]) for a in self.agents}
 
 		return observations, reward_map, terminations, truncations, infos
+
+	def _episode_infos(self) -> Dict[str, Dict[str, Any]]:
+		"""Expose terminal game outcomes as RLlib episode metrics."""
+		infos: Dict[str, Dict[str, Any]] = {}
+		for agent, player_idx in self._agent_to_idx.items():
+			player = self._game.players[player_idx]
+			infos[agent] = {
+				"harvest_count": self._game.harvested_by_player[player_idx],
+				"final_storage_total": player.protein_total,
+				**{
+					f"final_storage_{protein.name.lower()}": player.storage[protein]
+					for protein in Protein
+				},
+				"final_organ_count": player.organ_count,
+				"terminal_reason": self._game.terminal_reason,
+			}
+		return infos
 
 	def _state_potentials(self) -> List[float]:
 		"""Return a bounded, zero-sum potential for the current game state."""

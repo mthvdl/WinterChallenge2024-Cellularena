@@ -181,25 +181,34 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"replays": [], "error": "No replays-dir configured"})
             return
         entries = []
-        for path in sorted(self._replays_dir.glob("*.viewer.json")):
+        for path in sorted(self._replays_dir.rglob("*.viewer.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 turns = max(0, len(data.get("frames", [])) - 1)
             except Exception:  # noqa: BLE001
                 turns = 0
-            entries.append({"name": path.name, "mtime": path.stat().st_mtime, "turns": turns})
-        _json_response(self, HTTPStatus.OK, {"replays": entries})
+            relative_path = path.relative_to(self._replays_dir).as_posix()
+            experiment = path.parent.relative_to(self._replays_dir).as_posix() or "Unassigned"
+            entries.append({
+                "name": path.name,
+                "path": relative_path,
+                "experiment": experiment,
+                "mtime": path.stat().st_mtime,
+                "turns": turns,
+            })
+        experiments = sorted({entry["experiment"] for entry in entries})
+        _json_response(self, HTTPStatus.OK, {"replays": entries, "experiments": experiments})
 
     def _handle_replay_data(self, name: str) -> None:
         if self._replays_dir is None:
             self.send_error(HTTPStatus.NOT_FOUND, "No replays-dir configured")
             return
-        safe_name = Path(name).name  # strip any path components
-        if not safe_name.endswith(".viewer.json"):
+        relative_path = Path(name)
+        if relative_path.is_absolute() or not name.endswith(".viewer.json"):
             self.send_error(HTTPStatus.FORBIDDEN, "Only .viewer.json files served here")
             return
-        path = self._replays_dir / safe_name
-        if not path.exists():
+        path = (self._replays_dir / relative_path).resolve()
+        if self._replays_dir not in path.parents or not path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND, "Replay not found")
             return
         data = path.read_bytes()
@@ -218,7 +227,7 @@ def main() -> None:
     parser.add_argument(
         "--replays-dir",
         default=None,
-        help="Directory to scan for *.viewer.json checkpoint replays (enables /api/replays).",
+        help="Directory to scan recursively for *.viewer.json replays (enables /api/replays).",
     )
     args = parser.parse_args()
 

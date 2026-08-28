@@ -244,6 +244,7 @@ def save_checkpoint_replay(
     experiment_name: str,
     global_step: int,
     opponent_name: str,
+    output_dir: Optional[Path] = None,
 ) -> Path:
     """Record one episode and save a viewer JSON file next to the checkpoint.
 
@@ -267,7 +268,9 @@ def save_checkpoint_replay(
         "frames": frames,
     }
 
-    out_path = checkpoint_path.parent / f"{checkpoint_path.stem}_vs_{safe_opp}.viewer.json"
+    output_dir = output_dir or (checkpoint_path if checkpoint_path.is_dir() else checkpoint_path.parent)
+    checkpoint_name = checkpoint_path.name if checkpoint_path.is_dir() else checkpoint_path.stem
+    out_path = output_dir / f"{checkpoint_name}_vs_{safe_opp}.viewer.json"
     out_path.write_text(json.dumps(viewer_data))
     log.info("Checkpoint replay saved: %s (%d turns)", out_path.name, len(frames) - 1)
     return out_path

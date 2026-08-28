@@ -13,19 +13,50 @@ def train(
 	iterations: int,
 	checkpoint_dir: str | Path | None = None,
 	metric_callback: Callable[[Mapping[str, Any]], None] | None = None,
+	checkpoint_callback: Callable[[Path, int], None] | None = None,
+	replay_callback: Callable[[int], None] | None = None,
+	checkpoint_interval: int = 0,
+	replay_interval: int = 0,
+	start_iteration: int = 0,
 ) -> list[dict[str, Any]]:
-	"""Train for a fixed number of iterations and optionally save a checkpoint."""
+	"""Train and optionally save checkpoints or record replays on schedules."""
 	if iterations < 1:
 		raise ValueError("iterations must be at least 1")
+	if checkpoint_interval < 0 or replay_interval < 0:
+		raise ValueError("checkpoint_interval and replay_interval cannot be negative")
+	if start_iteration < 0:
+		raise ValueError("start_iteration cannot be negative")
 	results: list[dict[str, Any]] = []
-	for _ in range(iterations):
-		result = algorithm.train()
-		results.append(result)
-		if metric_callback is not None:
-			metric_callback(result)
 	if checkpoint_dir is not None:
-		Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-		algorithm.save(str(checkpoint_dir))
+		from torch.utils.tensorboard import SummaryWriter
+
+		writer = SummaryWriter(log_dir=Path(checkpoint_dir).parent / "tensorboard")
+	else:
+		writer = None
+	try:
+		for iteration in range(start_iteration + 1, start_iteration + iterations + 1):
+			result = algorithm.train()
+			results.append(result)
+			if writer is not None:
+				for key, value in scalar_metrics(result).items():
+					writer.add_scalar(key, value, iteration)
+				writer.flush()
+			if metric_callback is not None:
+				metric_callback(result)
+			if replay_callback is not None and replay_interval and iteration % replay_interval == 0:
+				replay_callback(iteration)
+			should_checkpoint = checkpoint_interval and iteration % checkpoint_interval == 0
+			if checkpoint_dir is not None and (should_checkpoint or iteration == iterations):
+				checkpoint_path = Path(checkpoint_dir) / f"checkpoint_{iteration}"
+				checkpoint_path.mkdir(parents=True, exist_ok=True)
+				checkpoint = algorithm.save(str(checkpoint_path))
+				if checkpoint_callback is not None:
+					checkpoint_value = getattr(checkpoint, "checkpoint", checkpoint)
+					checkpoint_path = Path(getattr(checkpoint_value, "path", checkpoint_value))
+					checkpoint_callback(checkpoint_path, iteration)
+	finally:
+		if writer is not None:
+			writer.close()
 	return results
 
 

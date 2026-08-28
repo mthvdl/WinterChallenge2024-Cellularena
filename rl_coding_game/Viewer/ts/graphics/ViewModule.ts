@@ -317,18 +317,18 @@ export class ViewModule {
 
     const particleAnimStartP = 0.2
     const sportAnimEndP = 0.5
+    const target = this.getEventTarget(event)
+    const direction = event.direction || this.getCardinalDirectionBetween(event.coord, target)
 
     if (p <= sportAnimEndP) {
       const organ = this.organByTileIdx[this.getTileIdx(event.coord)]
-      if (!organ) {
-        return
+      if (organ) {
+        organ.sprite.visible = false
       }
-      organ.sprite.visible = false
 
       const sporeAnimP = unlerp(0, sportAnimEndP, p)
       const animation = this.getFromPool(`spore${event.playerIdx}`) as AnimatedEffect
       animation.display.scale.set(this.organScale)
-      const direction = this.getCardinalDirectionBetween(event.coord, event.target)
       animation.display.rotation = (ROTATIONS_MAP[direction])
       this.placeInGameZone(animation.display, event.coord)
       setAnimationProgress(animation.display, sporeAnimP)
@@ -337,12 +337,10 @@ export class ViewModule {
     if (p >= particleAnimStartP) {
       const particleAnimP = unlerp(particleAnimStartP, 1, p)
       const fx = this.getFromPool(`particle${event.playerIdx}`) as SpriteEffect
-      const direction = this.getCardinalDirectionBetween(event.coord, event.target)
       fx.display.rotation = (ROTATIONS_MAP[direction])
 
       const from = event.coord
-      const to = event.target
-      this.placeInGameZone(fx.display, lerpPosition(from, to, particleAnimP))
+      this.placeInGameZone(fx.display, lerpPosition(from, target, particleAnimP))
     }
   }
   animateHarvest(event: EventDto) {
@@ -352,26 +350,25 @@ export class ViewModule {
     }
 
     const organ = this.organByTileIdx[this.getTileIdx(event.coord)]
-    if (!organ) {
-      return
-    }
 
     const animation = this.getFromPool(`harvest${event.playerIdx}`) as AnimatedEffect
     animation.display.scale.set(this.organScale)
-    const direction = this.getCardinalDirectionBetween(event.coord, event.target)
+    const direction = event.direction || this.getCardinalDirectionBetween(event.coord, this.getEventTarget(event))
     animation.display.rotation = (ROTATIONS_MAP[direction])
     this.placeInGameZone(animation.display, event.coord)
     setAnimationProgress(animation.display, p)
 
-    this.updateOrgan(organ, {
-      organData: {
-        playerIdx: event.playerIdx,
-        id: event.id,
-        type: 'HARVESTER',
-        direction: this.getCardinalDirectionBetween(event.coord, event.target),
-        pos: event.coord
-      }
-    })
+    if (organ) {
+      this.updateOrgan(organ, {
+        organData: {
+          playerIdx: event.playerIdx,
+          id: event.id,
+          type: 'HARVESTER',
+          direction,
+          pos: event.coord
+        }
+      })
+    }
   }
   animateAttack (event: EventDto) {
     const p = this.getAnimProgress(event.animData, this.progress)
@@ -417,6 +414,16 @@ export class ViewModule {
     } else {
       return dy > 0 ? 'S' : 'N'
     }
+  }
+
+  getEventTarget (event: EventDto): CoordDto {
+    if (event.target != null) {
+      return event.target
+    }
+
+    const offsets = {N: {x: 0, y: -1}, E: {x: 1, y: 0}, S: {x: 0, y: 1}, W: {x: -1, y: 0}}
+    const offset = offsets[event.direction] ?? {x: 0, y: 0}
+    return {x: event.coord.x + offset.x, y: event.coord.y + offset.y}
   }
 
   animateDeath (event: EventDto) {
