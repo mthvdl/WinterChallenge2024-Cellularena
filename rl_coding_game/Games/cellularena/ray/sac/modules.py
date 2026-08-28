@@ -48,10 +48,10 @@ class _ResidualBlock(nn.Module):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.SiLU(),
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),
         )
-        self.activation = nn.ReLU()
+        self.activation = nn.SiLU()
         _orthogonal_init(self.layers[0], gain=2**0.5)
         _orthogonal_init(self.layers[2], gain=1.0)
         nn.init.zeros_(self.layers[2].weight)
@@ -87,7 +87,7 @@ class _SpatialEncoder(TorchModel, Encoder):
         Encoder.__init__(self, config)
         self.net = nn.Sequential(
             nn.Conv2d(input_channels, 32, kernel_size=1),
-            nn.ReLU(),
+            nn.SiLU(),
             _ResidualBlock(32),
             _ResidualBlock(32),
             _ResidualBlock(32),
