@@ -112,9 +112,19 @@ class PlayerState:
 
 
 class Game:
-	def __init__(self, seed: Optional[int] = None, map_height: Optional[int] = None) -> None:
+	def __init__(
+		self,
+		seed: Optional[int] = None,
+		map_height: Optional[int] = None,
+		map_width: Optional[int] = None,
+		wall_ratio: Optional[float] = None,
+		protein_ratio: Optional[float] = None,
+	) -> None:
 		self._seed = seed
 		self._map_height = map_height
+		self._map_width = map_width
+		self._wall_ratio = wall_ratio
+		self._protein_ratio = protein_ratio
 		self.rng: random.Random = random.Random(seed)
 		self.grid: Optional[Grid] = None
 		self.players: List[PlayerState] = []
@@ -124,17 +134,25 @@ class Game:
 		self.done: bool = False
 		self.terminal_reason: str = ""
 		self._next_organ_id: int = 1
+		self.harvested_by_player: List[int] = [0, 0]
 
 	def reset(self) -> None:
 		self.rng = random.Random(self._seed)
 		self._next_organ_id = 1
-		self.grid = make_grid(self.rng, map_height=self._map_height)
+		self.grid = make_grid(
+			self.rng,
+			map_height=self._map_height,
+			map_width=self._map_width,
+			wall_ratio=self._wall_ratio,
+			protein_ratio=self._protein_ratio,
+		)
 		self.players = [PlayerState(idx=0), PlayerState(idx=1)]
 		self.organ_by_id = {}
 		self.organ_by_coord = {}
 		self.turn = 0
 		self.done = False
 		self.terminal_reason = ""
+		self.harvested_by_player = [0, 0]
 
 		for protein in Protein:
 			amount = self.rng.randint(3, 10)
@@ -442,6 +460,7 @@ class Game:
 						tile = self.grid.get(target)
 						if tile and tile.has_protein():
 							player.harvest(tile.protein)
+							self.harvested_by_player[player.idx] += 1
 							harvested.add(target)
 
 	def _do_attacks(self) -> None:
@@ -465,24 +484,19 @@ class Game:
 				self.terminal_reason = "player_eliminated"
 				return True
 		starved = [not player.can_progress(self.grid) for player in self.players]
-		if any(starved):
-			self.terminal_reason = (
-				"both_players_starved" if all(starved) else "player_starved"
-			)
-			return True
+		if self.grid.width < MAX_W or self.grid.height < MAX_H:
+			if all(starved):
+				self.terminal_reason = "both_players_starved"
+				return True
+			if any(starved):
+				self.terminal_reason = "player_starved"
+				return True
 		if self.turn >= MAX_TURNS:
 			self.terminal_reason = "max_turns"
 			return True
 		return False
 
 	def _final_rewards(self) -> Dict[int, float]:
-		if self.terminal_reason == "player_starved":
-			starved = [not player.can_progress(self.grid) for player in self.players]
-			if starved[0] and not starved[1]:
-				return {0: -2.0, 1: 2.0}
-			if starved[1] and not starved[0]:
-				return {0: 2.0, 1: -2.0}
-
 		scores = [p.organ_count for p in self.players]
 		if scores[0] > scores[1]:
 			return {0: 1.0, 1: -1.0}
@@ -678,8 +692,11 @@ class Game:
 			return True, {0: 0.0, 1: 0.0}
 
 		pending: List[GrowthCommand] = []
+		disqualified: Set[int] = set()
 		for player_idx, player_cmds in commands.items():
 			player = self.players[player_idx]
+			if len(player_cmds) < len(player.roots):
+				disqualified.add(player_idx)
 			acted_roots: Set[int] = set()
 
 			for slot, cmd_str in enumerate(player_cmds):
@@ -712,6 +729,14 @@ class Game:
 		self._do_harvests()
 		self._do_attacks()
 		self.turn += 1
+
+		if disqualified:
+			self.done = True
+			self.terminal_reason = "player_disqualified"
+			if len(disqualified) == 2:
+				return True, {0: 0.0, 1: 0.0}
+			loser = next(iter(disqualified))
+			return True, {loser: -1.0, 1 - loser: 1.0}
 
 		if self._is_game_over():
 			self.done = True

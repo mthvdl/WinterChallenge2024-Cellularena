@@ -18,6 +18,8 @@ from Games.cellularena.engine.game import MAX_TURNS
 def run_random_episode(seed: int = 0) -> dict:
     env = CellularenaEnv(seed=seed)
     obs, infos = env.reset()
+    for agent in env.possible_agents:
+        env.action_space(agent).seed(seed)
 
     step_count = 0
     total_rewards = {"player_0": 0.0, "player_1": 0.0}
@@ -70,7 +72,7 @@ def test_action_spaces():
 def test_potential_shaping_is_zero_sum_and_terminal_safe():
     env = CellularenaEnv(seed=3, reward_shaping=True)
     env.reset()
-    env._game.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
+    env._game.set_storage([0, 0, 0, 0], [0, 0, 0, 0])
     env._potentials = env._state_potentials()
 
     _, rewards, terminations, _, _ = env.step(
@@ -78,7 +80,7 @@ def test_potential_shaping_is_zero_sum_and_terminal_safe():
     )
 
     assert terminations == {"player_0": True, "player_1": True}
-    assert rewards == {"player_0": -2.0, "player_1": 2.0}
+    assert rewards == {"player_0": 0.0, "player_1": 0.0}
     assert env._potentials == [0.0, 0.0]
 
 
@@ -98,6 +100,22 @@ def test_potential_shaping_matches_difference_of_potentials():
         expected = env._shaping_gamma * next_potentials[player_idx] - current[player_idx]
         assert rewards[agent] == pytest.approx(expected)
     assert rewards["player_0"] == pytest.approx(-rewards["player_1"])
+
+
+def test_terminal_info_reports_harvest_and_storage():
+    env = CellularenaEnv(seed=3, reward_shaping=False)
+    env.reset()
+    env._game.set_storage([0, 0, 0, 0], [0, 0, 0, 0])
+    _, _, terminations, _, infos = env.step(
+        {"player_0": np.zeros(8, dtype=np.int64), "player_1": np.zeros(8, dtype=np.int64)}
+    )
+
+    assert all(terminations.values())
+    for player_idx, agent in enumerate(("player_0", "player_1")):
+        assert infos[agent]["harvest_count"] == env._game.harvested_by_player[player_idx]
+        assert infos[agent]["final_storage_total"] == env._game.players[player_idx].protein_total
+        assert infos[agent]["final_organ_count"] == env._game.players[player_idx].organ_count
+        assert infos[agent]["terminal_reason"] == env._game.terminal_reason
 
 
 def test_full_episode():

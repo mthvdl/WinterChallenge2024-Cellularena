@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from Games.cellularena.engine.game import Game, MAX_TURNS
@@ -127,7 +129,9 @@ class RefState:
             # ── Collision → wall ─────────────────────────────────────────────
             elif ev.type == EV_CRASH:
                 if ev.coords:
-                    self.walls.add(ev.coords[0])
+                    crash_xy = ev.coords[0]
+                    self.walls.add(crash_xy)
+                    self.proteins.pop(crash_xy, None)
 
     def organ_by_pos(self) -> Dict[Tuple[int, int], RefOrgan]:
         return {(o.x, o.y): o for o in self.organs.values()}
@@ -172,6 +176,60 @@ def _infer_initial_storage(
 
 def _storage_str(s: List[int]) -> str:
     return f"A:{s[0]} B:{s[1]} C:{s[2]} D:{s[3]}"
+
+
+def _expected_observation(
+    ref: RefState, ref_storage: List[List[int]], turn: int
+) -> Dict[str, np.ndarray]:
+    grid = np.zeros((12, 24, 17), dtype=np.float32)
+    protein_channels = {"A": 1, "B": 2, "C": 3, "D": 4}
+    organ_channels = {"ROOT": 0, "BASIC": 1, "TENTACLE": 2, "HARVESTER": 3, "SPORER": 4}
+    direction_values = {"N": 0.0, "E": 1.0 / 3.0, "S": 2.0 / 3.0, "W": 1.0}
+
+    for x, y in ref.walls:
+        grid[y, x, 0] = 1.0
+    for (x, y), protein in ref.proteins.items():
+        grid[y, x, protein_channels[protein]] = 1.0
+    for organ in ref.organs.values():
+        grid[organ.y, organ.x, 5 + organ.owner * 5 + organ_channels[organ.organ_type]] = 1.0
+        grid[organ.y, organ.x, 15 + organ.owner] = direction_values[organ.direction]
+
+    storage = np.asarray(ref_storage, dtype=np.float32) / 50.0
+    np.minimum(storage, 1.0, out=storage)
+    return {
+        "grid": grid,
+        "storage": storage,
+        "turn": np.asarray([turn / MAX_TURNS], dtype=np.float32),
+    }
+
+
+def _outcome_from_state(ref: RefState, storage: List[List[int]]) -> str:
+    organ_counts = [sum(organ.owner == player for organ in ref.organs.values()) for player in range(2)]
+    if organ_counts[0] != organ_counts[1]:
+        return "P0_WIN" if organ_counts[0] > organ_counts[1] else "P1_WIN"
+    protein_totals = [sum(player_storage) for player_storage in storage]
+    if protein_totals[0] != protein_totals[1]:
+        return "P0_WIN" if protein_totals[0] > protein_totals[1] else "P1_WIN"
+    return "TIE"
+
+
+def _outcome_from_rewards(rewards: Dict[int, float]) -> str:
+    if rewards[0] > rewards[1]:
+        return "P0_WIN"
+    if rewards[1] > rewards[0]:
+        return "P1_WIN"
+    return "TIE"
+
+
+def _reference_outcome(replay: Replay, ref: RefState) -> str:
+    ranks = replay.raw.get("ranks")
+    if isinstance(ranks, list) and len(ranks) >= 2:
+        if ranks[0] < ranks[1]:
+            return "P0_WIN"
+        if ranks[1] < ranks[0]:
+            return "P1_WIN"
+        return "TIE"
+    return _outcome_from_state(ref, replay.turns[-1].frame_data.storage)
 
 
 def compare_turn(
@@ -247,6 +305,13 @@ def compare_turn(
                 f"at {key} but engine doesn't"
             )
 
+    expected_observation = _expected_observation(ref, ref_storage, turn)
+    for player_idx in range(2):
+        actual_observation = engine.get_observation(player_idx)
+        for key, expected in expected_observation.items():
+            if not np.array_equal(actual_observation[key], expected):
+                issues.append(f"T{turn:03d} P{player_idx} OBSERVATION {key} differs")
+
     return issues
 
 
@@ -265,10 +330,12 @@ def validate_replay(path: Path, verbose: bool = True) -> Dict:
         return {"path": path, "error": str(exc), "issues": [str(exc)]}
 
     agents = " vs ".join(
-        a.get("name") or a.get("pseudo") or "?"
+        a.get("name") or a.get("pseudo") or (a.get("codingamer") or {}).get("pseudo") or "?"
         for a in replay.agents[:2]
     ) or "(unknown players)"
-    print(f"  Players: {agents}   Turns: {len(replay.turns)}")
+    metadata = replay.raw.get("metadata") or {}
+    reference_turns = int(metadata.get("gameLength", len(replay.turns)))
+    print(f"  Players: {agents}   Turns: {reference_turns}")
 
     # ── Extract global data string ────────────────────────────────────────────
     raw_frame0 = replay.raw.get("frames", [{}])[0]
@@ -299,6 +366,8 @@ def validate_replay(path: Path, verbose: bool = True) -> Dict:
     # ── Run turns ─────────────────────────────────────────────────────────────
     all_issues: List[str] = []
     storage_ok = organ_ok = 0
+    executed_turns = 0
+    final_rewards = {0: 0.0, 1: 0.0}
 
     for turn_data in replay.turns:
         turn_num = turn_data.turn
@@ -308,7 +377,8 @@ def validate_replay(path: Path, verbose: bool = True) -> Dict:
         }
 
         # Advance engine — pass reference events so organ IDs match exactly
-        done, _ = game.step_replay(cmds, reference_events=turn_data.frame_data.events)
+        done, rewards = game.step_replay(cmds, reference_events=turn_data.frame_data.events)
+        executed_turns += 1
 
         # Advance reference state
         ref.apply(turn_data.frame_data.events)
@@ -328,9 +398,31 @@ def validate_replay(path: Path, verbose: bool = True) -> Dict:
             organ_ok += 1
 
         if done:
+            final_rewards = rewards
+            if executed_turns != reference_turns:
+                all_issues.append(
+                    f"TERMINAL early at turn {executed_turns}; CodingGame has {reference_turns} turns"
+                )
             break
 
     total = len(replay.turns)
+    if total != reference_turns:
+        all_issues.append(f"REPLAY TURN COUNT frames={total} metadata={reference_turns}")
+    if executed_turns != reference_turns:
+        all_issues.append(f"TURN COUNT engine={executed_turns} ref={reference_turns}")
+    if not game.done:
+        all_issues.append(f"TERMINAL engine is not done after reference turn {total}")
+    elif replay.turns:
+        expected_outcome = _reference_outcome(replay, ref)
+        actual_outcome = _outcome_from_rewards(final_rewards)
+        if actual_outcome != expected_outcome:
+            all_issues.append(
+                f"OUTCOME engine={actual_outcome} ref={expected_outcome} rewards={final_rewards}"
+            )
+        print(
+            f"  Terminal: turns={executed_turns}/{total} outcome={actual_outcome}/{expected_outcome} "
+            f"reason={game.terminal_reason}"
+        )
     print(f"  Storage match: {storage_ok}/{total} ({100*storage_ok/max(total,1):.0f}%)")
     print(f"  Organ   match: {organ_ok}/{total}  ({100*organ_ok/max(total,1):.0f}%)")
 
@@ -367,7 +459,10 @@ def main() -> int:
     if args.replays:
         paths = [Path(p) for p in args.replays]
     else:
-        codingame = sorted(REPLAY_DIR.glob("codingame_*.json"))
+        codingame = [
+            path for path in sorted(REPLAY_DIR.glob("codingame_*.json"))
+            if not path.name.endswith(".viewer.json")
+        ]
         synthetic = sorted(REPLAY_DIR.glob("synthetic_*.json"))
         fallback = [
             p for p in sorted(REPLAY_DIR.glob("*.json"))

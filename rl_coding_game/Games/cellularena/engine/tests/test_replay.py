@@ -1,6 +1,7 @@
 """Smoke-test replay infrastructure without real replays."""
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).parent))
 
 from Games.cellularena.engine.game import Game
@@ -8,6 +9,7 @@ from Games.cellularena.engine.coord import Coord
 from Games.cellularena.engine.grid import Grid, Protein
 from Games.cellularena.engine.organ import OrganType
 from Games.cellularena.engine.replay_loader import load_replay
+from Games.cellularena.engine.tools.validate_engine import _reference_outcome
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Build a synthetic global-data string to test init_from_global_data
@@ -95,9 +97,9 @@ def test_replay_step():
     print(f"  step_replay OK — organs {organs_before} → {organs_after}")
 
 
-def test_starvation_ends_game_with_double_reward():
-    """A player unable to harvest or afford growth loses immediately."""
-    g = Game(seed=7)
+def test_single_starvation_ends_game():
+    """CodingGame ends when either player cannot evolve or harvest again."""
+    g = Game(seed=7, map_width=20, map_height=10)
     g.reset()
     g.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
 
@@ -105,7 +107,30 @@ def test_starvation_ends_game_with_double_reward():
 
     assert done
     assert g.terminal_reason == "player_starved"
-    assert rewards == {0: -2.0, 1: 2.0}
+    assert rewards == {0: -0.5, 1: 0.5}
+
+
+def test_final_league_does_not_end_on_starvation():
+    g = Game(seed=7, map_width=24, map_height=12)
+    g.reset()
+    g.set_storage([0, 0, 0, 0], [1, 0, 0, 0])
+
+    done, _ = g.step({0: [0], 1: [0]})
+
+    assert not done
+    assert g.terminal_reason == ""
+
+
+def test_missing_replay_command_disqualifies_player():
+    g = Game(seed=7)
+    g.reset()
+    g.set_storage([10, 10, 10, 10], [10, 10, 10, 10])
+
+    done, rewards = g.step_replay({0: [], 1: ["WAIT"]})
+
+    assert done
+    assert g.terminal_reason == "player_disqualified"
+    assert rewards == {0: -1.0, 1: 1.0}
 
 
 def test_both_starved_uses_normal_tiebreak():
@@ -119,6 +144,12 @@ def test_both_starved_uses_normal_tiebreak():
     assert done
     assert g.terminal_reason == "both_players_starved"
     assert rewards == {0: 0.0, 1: 0.0}
+
+
+def test_equal_codingame_ranks_are_a_tie():
+    replay = SimpleNamespace(raw={"ranks": [0, 0]}, turns=[])
+
+    assert _reference_outcome(replay, None) == "TIE"
 
 
 def test_parse_commands():

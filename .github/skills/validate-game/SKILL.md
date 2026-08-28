@@ -1,12 +1,13 @@
 ---
 name: validate-game
-description: "Use when the user wants to validate that their PettingZoo game engine correctly reproduces CodingGame replay outcomes — comparing stored states after each turn against the reference replay."
+description: "Use when the user wants to validate that their PettingZoo game engine exactly reproduces CodingGame games turn by turn, including complete next observations, terminal turn count, and winner/loser/tie outcome."
 ---
 
 # Validate Game Engine
 
-Validate that the game engine produces the same state as the CodingGame referee,
-by replaying downloaded games turn by turn and comparing outputs.
+Validate that the game engine produces the same next observation and terminal
+result as the CodingGame referee by replaying downloaded top-player games with
+the exact same player commands.
 
 ---
 
@@ -19,26 +20,45 @@ Ask the user **only** what you don't already know:
 If the game name is already clear from context, skip this question.
 Derive game name from URL by taking the last path segment and replacing `-` with `_`.
 
-Then check what exists:
+Then check what exists. Exact validation requires raw `codingame_*.json` files;
+`core_*.json` stores commands but not authoritative per-turn frame states.
 
 ```bash
 ls rl_coding_game/games/
-ls rl_coding_game/data/games/<GAME>/replays/core_*.json 2>/dev/null | wc -l
+ls rl_coding_game/Games/<GAME>/experiments/shared/replays/codingame_*.json 2>/dev/null | wc -l
 ```
 
 ---
 
-## Step 1 — Check prerequisites
+## Step 1 — Download top-player games
+
+For cellularena, retain every raw replay selected for validation. `-1` disables
+sample pruning and backfills raw data when a core replay already exists:
+
+```bash
+cd rl_coding_game
+conda run -n cellularena env PYTHONPATH=. python -m Core.cli.download_games \
+    --top 5 --per-player 3 --keep-samples -1
+```
+
+Never validate `core_*.json` for exactness: it lacks CodingGame frame storage,
+events, and terminal metadata. Confirm the raw set exists:
+
+```bash
+ls Games/cellularena/experiments/shared/replays/codingame_*.json
+```
+
+## Step 2 — Check prerequisites
 
 ```bash
 # Replays must exist
-ls rl_coding_game/data/games/<GAME>/replays/core_*.json | head -5
+ls rl_coding_game/Games/<GAME>/experiments/shared/replays/codingame_*.json | head -5
 
 # Game module must exist
-ls rl_coding_game/games/<GAME>/game/game.py
+ls rl_coding_game/Games/<GAME>/engine/game.py
 
 # Rules markdown must exist (implementation source of truth)
-ls rl_coding_game/games/<GAME>/rules.md
+ls rl_coding_game/Games/<GAME>/rules.md
 ```
 
 Read `rl_coding_game/games/<GAME>/rules.md` before validating and verify these are reflected in `game.py` behavior:
@@ -48,32 +68,36 @@ Read `rl_coding_game/games/<GAME>/rules.md` before validating and verify these a
 
 ---
 
-## Step 1 — Run smoke tests first
+## Step 3 — Run smoke tests first
 
 These test that the env/spaces compile correctly (they don't need replays):
 
 ```bash
-conda run -n cellularena python rl_coding_game/test_<GAME>.py
+cd rl_coding_game
+conda run -n cellularena env PYTHONPATH=. python -m pytest \
+    Games/<GAME>/engine/tests -q
 ```
 
 Fix any import errors or NotImplementedError before proceeding.
 
 ---
 
-## Step 2 — Run engine validation
+## Step 4 — Run exact engine validation
 
 ### For cellularena (full validation script)
 
 ```bash
 cd rl_coding_game
-conda run -n cellularena python validate_engine.py
+conda run -n cellularena env PYTHONPATH=. python \
+    -m Games.cellularena.engine.tools.validate_engine
 ```
 
 Or against a specific replay:
 
 ```bash
-conda run -n cellularena python validate_engine.py \
-    replays/codingame_884960630.json
+conda run -n cellularena env PYTHONPATH=. python \
+    -m Games.cellularena.engine.tools.validate_engine \
+    Games/cellularena/experiments/shared/replays/codingame_884960630.json
 ```
 
 ### For other games (custom validation)
@@ -101,9 +125,21 @@ Save as `validate_<GAME>.py` in `rl_coding_game/`.
 
 ---
 
-## Step 3 — Interpret results
+For every turn, validation must feed both players' recorded stdout commands and
+assert exact equality for:
 
-**All turns match:** Engine is correct. Proceed to training.
+- Full next observation arrays: grid channels, protein storage, and turn
+- Every wall, protein, organ position/type/owner/direction, and storage value
+- No termination before the last CodingGame turn
+- Engine is terminal on the last CodingGame turn
+- Exact total turn count
+- Winner, loser, or tie using final organ count then stored-protein tie-break
+
+Any missing raw frame data is a validation error, not a pass or warning.
+
+## Step 5 — Interpret results
+
+**All observations and terminal checks match:** Engine is correct for the tested replay corpus.
 
 **Storage mismatch:** Protein/resource counts differ.
 - Check harvesting logic, initial resource parsing, cost deductions
@@ -120,13 +156,14 @@ Save as `validate_<GAME>.py` in `rl_coding_game/`.
 
 ---
 
-## Step 4 — Iterate
+## Step 6 — Iterate
 
 Replay validation is the fastest feedback loop for engine bugs. Common workflow:
 
 ```bash
 while true; do
-    conda run -n cellularena python validate_engine.py --loop  # --loop re-runs after fixes
+    conda run -n cellularena env PYTHONPATH=. python \
+        -m Games.cellularena.engine.tools.validate_engine --loop
 done
 ```
 

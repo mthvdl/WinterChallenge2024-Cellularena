@@ -1,0 +1,268 @@
+{
+  "frames": [
+    {
+      "gameInformation": "",
+      "summary": "",
+      "view": " 0\n{\"global\":{\"graphics\":\"18 9\\n0 X\\n0 X\\n0 X\\n0 D\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 D\\n0 X\\n1 X\\n0 X\\n0 X\\n1 X\\n0 X\\n0 X\\n0 X\\n1 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n1 X\\n0 B\\n0 X\\n0 X\\n0 A\\n0 X\\n1 X\\n0 X\\n0 C\\n0 X\\n0 B\\n0 X\\n1 X\\n1 X\\n0 C\\n0 X\\n0 X\\n1 X\\n0 X\\n0 A\\n0 X\\n0 X\\n0 X\\n0 B\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 C\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 D\\n0 A\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 A\\n0 D\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 C\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 B\\n0 X\\n0 X\\n0 X\\n0 A\\n0 X\\n1 X\\n0 X\\n0 X\\n0 C\\n1 X\\n1 X\\n0 X\\n0 B\\n0 X\\n0 C\\n0 X\\n1 X\\n0 X\\n0 A\\n0 X\\n0 X\\n0 B\\n1 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n1 X\\n0 X\\n0 X\\n0 X\\n1 X\\n0 X\\n0 X\\n1 X\\n0 X\\n0 D\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 X\\n0 D\\n0 X\\n0 X\\n0 X\\n1\\n1 2 0 ROOT N 0\\n1\\n2 15 8 ROOT N 0\"},\"frame\":{\"graphics\":\"3 3 3 5\\n0\\n3 3 3 5\\n0\\n0\"}}\n",
+      "keyframe": true,
+      "agentId": -1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 1 3 0 SPORER E\n",
+      "view": " 1\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 2 15 7 SPORER N\n",
+      "summary": "$0:\n- consumed 1B, 1D for growth\n- gained 3D from absorption\n$1:\n- consumed 1B, 1D for growth\n",
+      "view": " 2\n{\"graphics\":\"3 2 3 7\\n0\\n3 2 3 4\\n0\\n3\\n0\\n0\\n1000\\n1\\n3\\nSPORER\\nN\\n15 8_15 7\\n6\\n0\\n1000\\n0\\n4\\n\\n\\n3 0\\n0\\n0\\n1000\\n0\\n4\\nSPORER\\nE\\n2 0_3 0\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "SPORE 4 10 0\n",
+      "view": " 3\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "SPORE 3 15 2\n",
+      "summary": "$0:\n- consumed 1A, 1B, 1C, 1D for growth\n$1:\n- consumed 1A, 1B, 1C, 1D for growth\n",
+      "view": " 4\n{\"duration\":1700,\"graphics\":\"2 1 2 6\\n0\\n2 1 2 3\\n0\\n4\\n1\\n0\\n500\\n1\\n3\\n\\n\\n15 7_15 2\\n1\\n0\\n700\\n0\\n4\\n\\n\\n3 0_10 0\\n8\\n700\\n1700\\n1\\n5\\n\\nN\\n15 2\\n8\\n700\\n1700\\n0\\n6\\n\\nN\\n10 0\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 6 10 1 SPORER S\nWAIT\n",
+      "view": " 5\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 3 15 6 HARVESTER E\nGROW 5 15 3 BASIC X\n",
+      "summary": "$0:\n- consumed 1B, 1D for growth\n- gained 3B from absorption\n$1:\n- consumed 1A, 1C, 1D for growth\n- gained 3A from absorption\n- gained 1B from harvest\n",
+      "view": " 6\n{\"duration\":1400,\"graphics\":\"2 3 2 5\\n0\\n4 2 1 2\\n1\\n5 X\\n6\\n6\\n0\\n1000\\n1\\n7\\n\\n\\n15 3\\n0\\n0\\n1000\\n1\\n7\\nBASIC\\nN\\n15 2_15 3\\n0\\n0\\n1000\\n1\\n8\\nHARVESTER\\nE\\n15 7_15 6\\n6\\n0\\n1000\\n0\\n9\\n\\n\\n10 1\\n0\\n0\\n1000\\n0\\n9\\nSPORER\\nS\\n10 0_10 1\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "SPORE 9 10 6\nGROW 1 2 1 SPORER S\n",
+      "view": " 7\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 8 15 5 BASIC X\nGROW 7 14 3 SPORER W\n",
+      "summary": "$0:\n- consumed 1A, 2B, 1C, 2D for growth\n$1:\n- consumed 1A, 1B, 1D for growth\n- gained 3D from absorption\n- gained 1B from harvest\n",
+      "view": " 8\n{\"duration\":1900,\"graphics\":\"1 1 1 3\\n0\\n3 2 1 4\\n1\\n2 X\\n7\\n1\\n0\\n500\\n0\\n9\\n\\n\\n10 1_10 6\\n0\\n500\\n1500\\n0\\n10\\nSPORER\\nS\\n2 0_2 1\\n6\\n500\\n1500\\n1\\n11\\n\\n\\n14 3\\n0\\n500\\n1500\\n1\\n11\\nSPORER\\nW\\n15 3_14 3\\n0\\n500\\n1500\\n1\\n12\\nBASIC\\nN\\n15 6_15 5\\n8\\n500\\n1500\\n0\\n13\\n\\nN\\n10 6\\n5\\n1500\\n1900\\n1\\n8\\n\\n\\n15 6_16 6\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 13 11 6 HARVESTER E\nGROW 9 10 2 BASIC N\nWAIT\n",
+      "view": " 9\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 2 14 8 SPORER W\nSPORE 11 4 3\n",
+      "summary": "$0:\n- consumed 1A, 1C, 1D for growth\n- gained 3A from absorption\n- gained 1C from harvest\n$1:\n- consumed 1A, 2B, 1C, 2D for growth\n- gained 3C, 3D from absorption\n- gained 1B from harvest\n",
+      "view": " 10\n{\"duration\":2400,\"graphics\":\"3 1 1 2\\n0\\n2 1 3 5\\n0\\n10\\n1\\n0\\n1000\\n1\\n11\\n\\n\\n14 3_4 3\\n6\\n1000\\n2000\\n1\\n14\\n\\n\\n4 3\\n8\\n1000\\n2000\\n1\\n14\\n\\nN\\n4 3\\n6\\n1000\\n2000\\n0\\n15\\n\\n\\n10 2\\n0\\n1000\\n2000\\n0\\n15\\nBASIC\\nN\\n10 1_10 2\\n6\\n1000\\n2000\\n1\\n16\\n\\n\\n14 8\\n0\\n1000\\n2000\\n1\\n16\\nSPORER\\nW\\n15 8_14 8\\n0\\n1000\\n2000\\n0\\n17\\nHARVESTER\\nE\\n10 6_11 6\\n5\\n2000\\n2400\\n0\\n17\\n\\n\\n11 6_12 6\\n5\\n2000\\n2400\\n1\\n8\\n\\n\\n15 6_16 6\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "SPORE 10 2 5\nGROW 17 11 5 BASIC N\nGROW 15 11 2 BASIC N\n",
+      "view": " 11\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 12 14 5 HARVESTER W\nGROW 5 16 2 BASIC X\nGROW 14 3 3 TENTACLE W\n",
+      "summary": "$0:\n- consumed 3A, 1B, 1C, 1D for growth\n- gained 3A from absorption\n- gained 1C from harvest\n$1:\n- consumed 1A, 1B, 2C, 1D for growth\n- gained 1B, 1C from harvest\n",
+      "view": " 12\n{\"duration\":1800,\"graphics\":\"3 0 1 1\\n0\\n1 1 2 4\\n1\\n5 X\\n11\\n1\\n0\\n400\\n0\\n10\\n\\n\\n2 1_2 5\\n0\\n400\\n1400\\n1\\n18\\nTENTACLE\\nW\\n4 3_3 3\\n0\\n400\\n1400\\n1\\n19\\nBASIC\\nN\\n15 2_16 2\\n6\\n400\\n1400\\n0\\n20\\n\\n\\n2 5\\n8\\n400\\n1400\\n0\\n20\\n\\nN\\n2 5\\n0\\n400\\n1400\\n1\\n21\\nHARVESTER\\nW\\n15 5_14 5\\n0\\n400\\n1400\\n0\\n22\\nBASIC\\nN\\n10 2_11 2\\n0\\n400\\n1400\\n0\\n23\\nBASIC\\nN\\n11 6_11 5\\n5\\n1400\\n1800\\n0\\n17\\n\\n\\n11 6_12 6\\n5\\n1400\\n1800\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1400\\n1800\\n1\\n21\\n\\n\\n14 5_13 5\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 10 1 1 HARVESTER S\nGROW 20 3 5 BASIC N\nGROW 22 12 2 BASIC N\nWAIT\n",
+      "view": " 13\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 21 13 5 TENTACLE W\nGROW 19 17 2 HARVESTER N\nGROW 18 3 4 BASIC X\n",
+      "summary": "$0:\n- consumed 2A, 1C, 1D for growth\n- gained 3D from absorption\n- gained 1B, 1C from harvest\n$1:\n- consumed 1A, 1B, 2C, 1D for growth\n- gained 3C from absorption\n- gained 1B, 1C from harvest\n",
+      "view": " 14\n{\"duration\":1400,\"graphics\":\"1 1 1 3\\n0\\n0 1 4 3\\n1\\n14 X\\n12\\n0\\n0\\n1000\\n0\\n24\\nHARVESTER\\nS\\n2 1_1 1\\n0\\n0\\n1000\\n1\\n25\\nBASIC\\nN\\n3 3_3 4\\n0\\n0\\n1000\\n1\\n26\\nHARVESTER\\nN\\n16 2_17 2\\n6\\n0\\n1000\\n0\\n27\\n\\n\\n3 5\\n0\\n0\\n1000\\n0\\n27\\nBASIC\\nN\\n2 5_3 5\\n0\\n0\\n1000\\n0\\n28\\nBASIC\\nN\\n11 2_12 2\\n6\\n0\\n1000\\n1\\n29\\n\\n\\n13 5\\n0\\n0\\n1000\\n1\\n29\\nTENTACLE\\nW\\n14 5_13 5\\n5\\n1000\\n1400\\n0\\n24\\n\\n\\n1 1_1 2\\n5\\n1000\\n1400\\n0\\n17\\n\\n\\n11 6_12 6\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1000\\n1400\\n1\\n26\\n\\n\\n17 2_17 1\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 28 13 2 HARVESTER N\nGROW 20 2 4 BASIC N\nGROW 13 10 7 SPORER E\nWAIT\n",
+      "view": " 15\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 29 12 5 HARVESTER S\nGROW 5 14 2 TENTACLE W\nGROW 14 5 3 HARVESTER N\n",
+      "summary": "$0:\n- consumed 1A, 1B, 1C, 2D for growth\n- gained 1A, 1B, 1C from harvest\n$1:\n- consumed 1B, 3C, 2D for growth\n- gained 3B from absorption\n- gained 1B, 3C from harvest\n",
+      "view": " 16\n{\"duration\":2700,\"graphics\":\"1 1 1 1\\n0\\n0 4 4 1\\n0\\n16\\n0\\n0\\n1000\\n0\\n30\\nBASIC\\nN\\n2 5_2 4\\n6\\n0\\n1000\\n1\\n31\\n\\n\\n14 2\\n0\\n0\\n1000\\n1\\n31\\nTENTACLE\\nW\\n15 2_14 2\\n0\\n0\\n1000\\n0\\n32\\nHARVESTER\\nN\\n12 2_13 2\\n0\\n0\\n1000\\n1\\n33\\nHARVESTER\\nS\\n13 5_12 5\\n0\\n0\\n1000\\n0\\n34\\nSPORER\\nE\\n10 6_10 7\\n0\\n0\\n1000\\n1\\n35\\nHARVESTER\\nN\\n4 3_5 3\\n5\\n1000\\n1400\\n0\\n24\\n\\n\\n1 1_1 2\\n5\\n1000\\n1400\\n0\\n17\\n\\n\\n11 6_12 6\\n5\\n1000\\n1400\\n0\\n32\\n\\n\\n13 2_13 1\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1000\\n1400\\n1\\n33\\n\\n\\n12 5_12 6\\n5\\n1000\\n1400\\n1\\n35\\n\\n\\n5 3_5 2\\n5\\n1000\\n1400\\n1\\n26\\n\\n\\n17 2_17 1\\n2\\n1400\\n1700\\n1\\n31\\n\\n\\n14 2_13 2\\n3\\n1700\\n2700\\n0\\n32\\nHARVESTER\\nN\\n13 2\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 17 12 6 BASIC N\nGROW 28 12 1 HARVESTER N\nWAIT\nWAIT\n",
+      "view": " 17\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 33 12 6 TENTACLE W\nGROW 31 13 2 TENTACLE W\nGROW 14 4 4 TENTACLE S\n",
+      "summary": "$0:\n- consumed 1A, 1C, 1D for growth\n- gained 1B, 1D from harvest\n$1:\n- consumed 3B, 3C for growth\n- gained 1B, 2C from harvest\n",
+      "view": " 18\n{\"duration\":2800,\"graphics\":\"0 2 0 1\\n0\\n0 2 3 1\\n0\\n12\\n0\\n0\\n1000\\n1\\n36\\nTENTACLE\\nS\\n4 3_4 4\\n0\\n0\\n1000\\n1\\n37\\nTENTACLE\\nW\\n14 2_13 2\\n0\\n0\\n1000\\n0\\n38\\nHARVESTER\\nN\\n12 2_12 1\\n7\\n0\\n300\\n\\n\\n\\n\\n12 6_11 6_12 5\\n5\\n1000\\n1400\\n0\\n38\\n\\n\\n12 1_12 0\\n5\\n1000\\n1400\\n0\\n24\\n\\n\\n1 1_1 2\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1000\\n1400\\n1\\n35\\n\\n\\n5 3_5 2\\n5\\n1000\\n1400\\n1\\n26\\n\\n\\n17 2_17 1\\n2\\n1400\\n1700\\n1\\n37\\n\\n\\n13 2_12 2\\n3\\n1700\\n2700\\n0\\n28\\nBASIC\\nN\\n12 2\\n3\\n1800\\n2800\\n0\\n38\\nHARVESTER\\nN\\n12 1\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 15 10 3 SPORER E\nWAIT\nWAIT\nWAIT\n",
+      "view": " 19\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 16 13 8 TENTACLE N\nGROW 37 13 1 HARVESTER E\nGROW 18 2 3 TENTACLE N\n",
+      "summary": "$0:\n- consumed 1B, 1D for growth\n- gained 1B from harvest\n$1:\n- consumed 2B, 3C, 1D for growth\n- gained 3A from absorption\n- gained 1B, 2C from harvest\n",
+      "view": " 20\n{\"duration\":1400,\"graphics\":\"0 2 0 0\\n0\\n3 1 2 0\\n0\\n9\\n0\\n0\\n1000\\n1\\n39\\nTENTACLE\\nN\\n3 3_2 3\\n6\\n0\\n1000\\n1\\n40\\n\\n\\n13 1\\n0\\n0\\n1000\\n1\\n40\\nHARVESTER\\nE\\n13 2_13 1\\n0\\n0\\n1000\\n0\\n41\\nSPORER\\nE\\n10 2_10 3\\n0\\n0\\n1000\\n1\\n42\\nTENTACLE\\nN\\n14 8_13 8\\n5\\n1000\\n1400\\n0\\n24\\n\\n\\n1 1_1 2\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1000\\n1400\\n1\\n35\\n\\n\\n5 3_5 2\\n5\\n1000\\n1400\\n1\\n26\\n\\n\\n17 2_17 1\"}\n",
+      "keyframe": true,
+      "agentId": 1
+    },
+    {
+      "gameInformation": "",
+      "stdout": "WAIT\nWAIT\nWAIT\nWAIT\n",
+      "view": " 21\n",
+      "keyframe": false,
+      "agentId": 0
+    },
+    {
+      "gameInformation": "",
+      "stdout": "GROW 12 16 5 BASIC X\nGROW 40 12 1 BASIC X\nGROW 39 2 2 TENTACLE N\n",
+      "summary": "$0:\n- gained 1B from harvest\n$1:\n- consumed 2A, 1B, 1C for growth\n- gained 1B, 2C from harvest\n¤GREEN¤\nGame over: not enough proteins to continue evolving.§GREEN§\n",
+      "view": " 22\n{\"duration\":2800,\"graphics\":\"0 3 0 0\\n0\\n1 1 3 0\\n2\\n2 X\\n5 X\\n10\\n0\\n0\\n1000\\n1\\n43\\nTENTACLE\\nN\\n2 3_2 2\\n0\\n0\\n1000\\n1\\n44\\nBASIC\\nN\\n13 1_12 1\\n0\\n0\\n1000\\n1\\n45\\nBASIC\\nN\\n15 5_16 5\\n5\\n1000\\n1400\\n0\\n24\\n\\n\\n1 1_1 2\\n5\\n1000\\n1400\\n1\\n8\\n\\n\\n15 6_16 6\\n5\\n1000\\n1400\\n1\\n35\\n\\n\\n5 3_5 2\\n5\\n1000\\n1400\\n1\\n26\\n\\n\\n17 2_17 1\\n2\\n1400\\n1700\\n1\\n43\\n\\n\\n2 2_2 1\\n3\\n1700\\n2700\\n0\\n10\\nSPORER\\nS\\n2 1\\n3\\n1800\\n2800\\n0\\n24\\nHARVESTER\\nS\\n1 1\",\"endScreen\":[[14,26],\"logo.png\",null]}\n",
+      "keyframe": true,
+      "agentId": 1
+    }
+  ],
+  "gameId": 884960851,
+  "refereeInput": "seed=-7764011134311114000\n",
+  "scores": [
+    14.0,
+    26.0
+  ],
+  "ranks": [
+    1,
+    0
+  ],
+  "tooltips": [
+    "{\"turn\":22,\"text\":\"$1 wins!\",\"event\":1}"
+  ],
+  "agents": [
+    {
+      "index": 0,
+      "codingamer": {
+        "userId": 1629759,
+        "pseudo": "MSz",
+        "avatar": 95180546328327
+      },
+      "agentId": 5739935,
+      "score": 29.861572240961312,
+      "valid": true
+    },
+    {
+      "index": 1,
+      "codingamer": {
+        "userId": 4062038,
+        "pseudo": "delineate",
+        "avatar": 116717509878444
+      },
+      "agentId": 6409924,
+      "score": 30.829553051744305,
+      "valid": true
+    }
+  ],
+  "metadata": {
+    "harvestedProteins_D_0": 1.0,
+    "harvestedProteins_D_1": 0.0,
+    "harvestedProteins_B_0": 5.0,
+    "wallPoints_1": 0.0,
+    "harvestedProteins_B_1": 9.0,
+    "wallPoints_0": 0.0,
+    "totalSporeDistance_1": 15.0,
+    "deathTypes_root_0": 0.0,
+    "deathTypes_root_1": 0.0,
+    "mutualKills": 0.0,
+    "growthTypes_harvester_0": 4.0,
+    "growthTypes_harvester_1": 6.0,
+    "deathTypes_tentacle_1": 0.0,
+    "deathTypes_tentacle_0": 0.0,
+    "totalSporeDistance_0": 16.0,
+    "mutualSpawns": 1.0,
+    "deathTypes_sporer_0": 1.0,
+    "deathTypes_sporer_1": 0.0,
+    "absorbedProteins_D_0": 6.0,
+    "absorbedProteins_D_1": 6.0,
+    "absorbedProteins_B_0": 3.0,
+    "absorbedProteins_B_1": 3.0,
+    "deathTypes_basic_0": 1.0,
+    "harvestedProteins_A_0": 1.0,
+    "growthTypes_root_0": 3.0,
+    "cascadeChildrenDeaths_0": 2.0,
+    "proteinThefts_0": 0.0,
+    "deathTypes_basic_1": 0.0,
+    "growthTypes_root_1": 2.0,
+    "proteinThefts_1": 0.0,
+    "harvestedProteins_C_1": 11.0,
+    "cascadeChildrenDeaths_1": 0.0,
+    "harvestedProteins_A_1": 0.0,
+    "harvestedProteins_C_0": 4.0,
+    "growthTypes_tentacle_1": 8.0,
+    "growthTypes_tentacle_0": 0.0,
+    "deathTypes_harvester_1": 0.0,
+    "deathTypes_harvester_0": 3.0,
+    "deniedSpore": 0.0,
+    "executionTime_0": 1383.0,
+    "executionTime_1": 1533.0,
+    "gameLength": 11.0,
+    "absorbedProteins_A_0": 6.0,
+    "organismsAtGameEnd_1": 3.0,
+    "organismsAtGameEnd_0": 4.0,
+    "growthTypes_basic_0": 6.0,
+    "growthTypes_basic_1": 6.0,
+    "growthTypes_sporer_0": 5.0,
+    "growthTypes_sporer_1": 3.0,
+    "doubleDeniedSpores": 0.0,
+    "absorbedProteins_C_1": 6.0,
+    "absorbedProteins_A_1": 6.0,
+    "absorbedProteins_C_0": 0.0
+  }
+}

@@ -454,7 +454,8 @@ def main() -> None:
 
         for gid in game_ids[: args.per_player]:
             dest = REPLAY_DIR / f"core_{gid}.json"
-            if dest.exists():
+            raw_dest = REPLAY_DIR / f"codingame_{gid}.json"
+            if dest.exists() and (args.keep_samples >= 0 or raw_dest.exists()):
                 print(f"    [{gid}] already saved")
                 skipped += 1
                 continue
