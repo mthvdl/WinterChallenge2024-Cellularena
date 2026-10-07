@@ -6,9 +6,9 @@ from Core.ray_config import DQNSettings, LeaguePoolSettings, load_overrides, set
 
 
 def test_settings_dict_merges_known_overrides() -> None:
-	values = settings_dict(DQNSettings(), {"train_batch_size": 64})
+	values = settings_dict(DQNSettings(), {"num_atoms": 51})
 
-	assert values["train_batch_size"] == 64
+	assert values["num_atoms"] == 51
 	assert values["noisy"] is True
 
 
@@ -23,6 +23,6 @@ def test_league_pool_is_disabled_by_default() -> None:
 
 def test_load_overrides_reads_json(tmp_path) -> None:
 	path = tmp_path / "ray.json"
-	path.write_text(json.dumps({"run": {"num_env_runners": 1}}), encoding="utf-8")
+	path.write_text(json.dumps({"experiment": {"runner": {"num_env_runners": 1}}}), encoding="utf-8")
 
-	assert load_overrides(path)["run"]["num_env_runners"] == 1
+	assert load_overrides(path)["experiment"]["runner"]["num_env_runners"] == 1

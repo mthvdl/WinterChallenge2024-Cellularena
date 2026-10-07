@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import signal
 import shutil
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
 import ray
@@ -20,12 +18,11 @@ from Core.ray_policies import (
 )
 from Core.ray_training import print_metrics, train
 from Core.league import discover_checkpoints, promote_checkpoint
-from Core.project_paths import algorithm_config_example, experiment_checkpoints_dir, experiment_replays_dir, experiment_root, experiment_snapshot_dir
+from Core.project_paths import algorithm_config_example, experiment_checkpoints_dir, experiment_replay_buffer_path, experiment_replays_dir, experiment_root, experiment_snapshot_dir
 from Games.cellularena.ray.config import resolve_run_and_env_settings
-from Games.cellularena.ray.dqn.feature_builder import DQNFeatureBuilder
-from Games.cellularena.ray.dqn.modules import DQNNetwork
 from Games.cellularena.ray.dqn.config import build_config
 from Games.cellularena.ray.env_wrapper import make_env_creator
+from Games.cellularena.ray.evaluation import EVAL_OPPONENT_POLICY_ID, prepare_evaluation
 
 
 def main() -> None:
@@ -46,14 +43,12 @@ def main() -> None:
     for directory in (experiment_checkpoints_dir("cellularena", "dqn", args.experiment_name), experiment_replays_dir("cellularena", "dqn", args.experiment_name)):
         directory.mkdir(parents=True, exist_ok=True)
     if args.iterations is not None:
-        overrides.setdefault("run", {})["iterations"] = args.iterations
+        overrides.setdefault("experiment", {})["iterations"] = args.iterations
     if args.num_env_runners is not None:
-        overrides.setdefault("run", {})["num_env_runners"] = args.num_env_runners
+        overrides.setdefault("experiment", {}).setdefault("runner", {})["num_env_runners"] = args.num_env_runners
     run, env_settings = resolve_run_and_env_settings(overrides)
     run_iterations = run["iterations"]
     checkpoint_interval = run["checkpoint_interval"]
-    replay_interval = run["replay_interval"]
-    debug = run["debug"]
     league_pool = settings_dict(LeaguePoolSettings(), overrides.get("league_pool"))
     frozen_opponent, league_enabled = resolve_opponent_modes(
         league_pool["enabled"], args.frozen_opponent, bool(args.opponent_checkpoint)
@@ -74,17 +69,8 @@ def main() -> None:
         args.opponent_policy,
     )
 
-    register_env(
-        "cellularena_ray",
-        make_env_creator(
-            feature_builder_factory=partial(
-                DQNFeatureBuilder,
-                history_steps=env_settings["obs_history_steps"],
-            ),
-            flatten_action_mask=True,
-        ),
-    )
-    ray.init(ignore_reinit_error=True, include_dashboard=debug)
+    register_env("cellularena_ray", make_env_creator())
+    ray.init(ignore_reinit_error=True, include_dashboard=True)
     algorithm = build_config(
         overrides=overrides,
         frozen_opponent=frozen_opponent,
@@ -92,6 +78,8 @@ def main() -> None:
     ).build_algo()
     try:
         main_policy_id = "learner" if frozen_opponent else "shared"
+        if run["evaluation_interval"]:
+            seed_opponents_from_policy(algorithm, main_policy_id, [EVAL_OPPONENT_POLICY_ID])
         if league_enabled:
             seed_opponents_from_policy(algorithm, main_policy_id, opponent_policy_ids)
         if opponent_checkpoints:
@@ -118,19 +106,30 @@ def main() -> None:
             opponent_rotation["index"] += 1
             algorithm.set_weights({target_policy_id: algorithm.get_weights([main_policy_id])[main_policy_id]})
 
+        checkpoints_dir = experiment_checkpoints_dir("cellularena", "dqn", args.experiment_name)
+
+        def _prepare_evaluation(step: int) -> None:
+            prepare_evaluation(
+                algorithm,
+                checkpoints_dir,
+                step,
+                args.experiment_name,
+                experiment_replays_dir("cellularena", "dqn", args.experiment_name)
+                if run["save_evaluation_play"]
+                else None,
+            )
+
         train(
             algorithm,
             run_iterations,
-            experiment_checkpoints_dir("cellularena", "dqn", args.experiment_name),
+            checkpoints_dir,
             print_metrics,
             checkpoint_interval=checkpoint_interval,
-            replay_interval=replay_interval,
+            evaluation_interval=run["evaluation_interval"],
             checkpoint_callback=_refresh_league if league_enabled else None,
+            evaluation_callback=_prepare_evaluation,
+            replay_buffer_path=experiment_replay_buffer_path("cellularena", "dqn", args.experiment_name),
         )
-        if debug:
-            print("Debug mode: Ray remains available until interrupted with Ctrl+C.")
-            while True:
-                signal.pause()
     finally:
         algorithm.stop()
         ray.shutdown()

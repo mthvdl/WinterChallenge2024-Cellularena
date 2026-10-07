@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from Core.ray_metrics import scalar_metrics
+from Core.replay_buffer_store import save_replay_buffer
 
 
 def train(
@@ -14,16 +15,21 @@ def train(
 	checkpoint_dir: str | Path | None = None,
 	metric_callback: Callable[[Mapping[str, Any]], None] | None = None,
 	checkpoint_callback: Callable[[Path, int], None] | None = None,
-	replay_callback: Callable[[int], None] | None = None,
+	evaluation_callback: Callable[[int], None] | None = None,
 	checkpoint_interval: int = 0,
-	replay_interval: int = 0,
+	evaluation_interval: int = 0,
 	start_iteration: int = 0,
+	replay_buffer_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-	"""Train and optionally save checkpoints or record replays on schedules."""
+	"""Train and optionally save checkpoints on a schedule.
+
+	`evaluation_callback` runs before each `train()` call in which RLlib evaluates.
+	With `replay_buffer_path`, the algorithm's replay buffer is overwritten there at each checkpoint.
+	"""
 	if iterations < 1:
 		raise ValueError("iterations must be at least 1")
-	if checkpoint_interval < 0 or replay_interval < 0:
-		raise ValueError("checkpoint_interval and replay_interval cannot be negative")
+	if checkpoint_interval < 0 or evaluation_interval < 0:
+		raise ValueError("checkpoint_interval and evaluation_interval cannot be negative")
 	if start_iteration < 0:
 		raise ValueError("start_iteration cannot be negative")
 	results: list[dict[str, Any]] = []
@@ -36,6 +42,8 @@ def train(
 		writer = None
 	try:
 		for iteration in range(start_iteration + 1, final_iteration + 1):
+			if evaluation_callback is not None and evaluation_interval and iteration % evaluation_interval == 0:
+				evaluation_callback(iteration)
 			result = algorithm.train()
 			results.append(result)
 			if writer is not None:
@@ -44,13 +52,13 @@ def train(
 				writer.flush()
 			if metric_callback is not None:
 				metric_callback(result)
-			if replay_callback is not None and replay_interval and iteration % replay_interval == 0:
-				replay_callback(iteration)
 			should_checkpoint = checkpoint_interval and iteration % checkpoint_interval == 0
 			if checkpoint_dir is not None and (should_checkpoint or iteration == final_iteration):
 				checkpoint_path = Path(checkpoint_dir) / f"checkpoint_{iteration}"
 				checkpoint_path.mkdir(parents=True, exist_ok=True)
 				checkpoint = algorithm.save(str(checkpoint_path))
+				if replay_buffer_path is not None:
+					save_replay_buffer(algorithm.local_replay_buffer, replay_buffer_path)
 				if checkpoint_callback is not None:
 					checkpoint_value = getattr(checkpoint, "checkpoint", checkpoint)
 					checkpoint_path = Path(getattr(checkpoint_value, "path", checkpoint_value))

@@ -1,27 +1,35 @@
 import numpy as np
+import pytest
 
 from Games.cellularena.factories import make_action_env
 from Games.cellularena.engine.obs.feature_builder import TemporalObservationBuilder
-from Games.cellularena.ray.dqn.feature_builder import DQNFeatureBuilder
-from Games.cellularena.ray.env_wrapper import CellularenaRayWrapper, CellularenaSACWrapper
-from Games.cellularena.ray.sac.feature_builder import SACFeatureBuilder, encode_observation
+from Games.cellularena.engine.obs.paper_features import encode_observation
+from Games.cellularena.ray.dqn.preprocessor import DQNPreprocessor
+from Games.cellularena.ray.env_wrapper import CellularenaRayWrapper
+from Games.cellularena.ray.sac.preprocessor import SACPreprocessor
 from Games.cellularena.ray.sac.modules import _SpatialEncoder, _SpatialHead, _SpatialModelConfig
 from Games.cellularena.engine.action_adapter import WAIT_ACTION_INDEX, transform_action_index
 from gymnasium import spaces
 import torch
 
 
-def test_ray_wrapper_observation_contract() -> None:
-	env = CellularenaRayWrapper(
-		make_action_env(seed=0, map_height=8),
-		feature_builder=DQNFeatureBuilder(),
-	)
+def _preprocessor_and_raw_observations(preprocessor_class):
+	env = CellularenaRayWrapper(make_action_env(seed=0, map_height=8))
+	observations, _ = env.reset()
+	input_space = spaces.Dict({agent: env.observation_space(agent) for agent in env.agents})
+	preprocessor = preprocessor_class(input_space, None)
+	env.close()
+	return preprocessor, observations
+
+
+def test_ray_wrapper_exposes_raw_observation_and_mask() -> None:
+	env = CellularenaRayWrapper(make_action_env(seed=0, map_height=8))
 	observations, _ = env.reset()
 
 	for agent in env.agents:
 		observation = observations[agent]
 		assert env.observation_space(agent).contains(observation)
-		assert observation["observations"].shape == (26784,)
+		assert "grid" in observation
 		assert observation["action_mask"].shape == (4033,)
 		assert set(observation["action_mask"]).issubset({0.0, 1.0})
 
@@ -34,16 +42,34 @@ def test_ray_wrapper_uses_discrete_action_space() -> None:
 	env.close()
 
 
-def test_sac_wrapper_uses_discrete_action_space() -> None:
-	env = CellularenaSACWrapper(
-		make_action_env(seed=0, map_height=8), feature_builder=SACFeatureBuilder()
-	)
-	assert env.action_space("player_0").n == 4033
-	observation, _ = env.reset()
-	assert env.observation_space("player_0").contains(observation["player_0"])
-	assert observation["player_0"]["observations"].shape == (12, 24, 93)
-	assert observation["player_0"]["action_mask"].shape == (4033,)
-	env.close()
+def test_sac_preprocessor_builds_spatial_observation() -> None:
+	connector, raw = _preprocessor_and_raw_observations(SACPreprocessor)
+	observations = connector.preprocess(raw, episode=None)
+
+	for agent, observation in observations.items():
+		assert connector.observation_space[agent].contains(observation)
+		assert observation["observations"].shape == (12, 24, 93)
+		assert np.array_equal(observation["action_mask"], raw[agent]["action_mask"])
+
+
+def test_dqn_preprocessor_flattens_observation() -> None:
+	connector, raw = _preprocessor_and_raw_observations(DQNPreprocessor)
+	observations = connector.preprocess(raw, episode=None)
+
+	for agent, observation in observations.items():
+		assert connector.observation_space[agent].contains(observation)
+		assert observation.shape == (26784 + 4033,)
+		assert np.array_equal(observation[-4033:], raw[agent]["action_mask"])
+
+
+def test_preprocessor_rejects_non_finite_features() -> None:
+	class NanPreprocessor(SACPreprocessor):
+		def build_features(self, raw_observation):
+			return np.full((12, 24, 93), np.nan, dtype=np.float32)
+
+	connector, raw = _preprocessor_and_raw_observations(NanPreprocessor)
+	with pytest.raises(RuntimeError, match="non-finite"):
+		connector.preprocess(raw, episode=None)
 
 
 def test_temporal_feature_builders_preserve_early_frame_order() -> None:
@@ -62,10 +88,10 @@ def test_temporal_feature_builders_preserve_early_frame_order() -> None:
 	partial_observation = history.transform(0, {**base, "grid": second_grid})
 	partial_observation["self_player_idx"] = np.asarray([0], dtype=np.int32)
 
-	sac_builder = SACFeatureBuilder(history_steps=3)
-	reset_features = sac_builder.build(reset_observation)
-	partial_features = sac_builder.build(partial_observation)
-	dqn_features = DQNFeatureBuilder(history_steps=3).build(partial_observation)
+	sac_preprocessor = SACPreprocessor(history_steps=3)
+	reset_features = sac_preprocessor.build_features(reset_observation)
+	partial_features = sac_preprocessor.build_features(partial_observation)
+	dqn_features = DQNPreprocessor(history_steps=3).build_features(partial_observation)
 
 	assert reset_features.shape == (12, 24, 279)
 	assert np.array_equal(reset_features[:, :, :93], reset_features[:, :, 93:186])
@@ -79,10 +105,7 @@ def test_temporal_feature_builders_preserve_early_frame_order() -> None:
 
 
 def test_ray_wrapper_uses_player_relative_action_mask() -> None:
-	env = CellularenaRayWrapper(
-		make_action_env(seed=0, map_height=8),
-		feature_builder=SACFeatureBuilder(),
-	)
+	env = CellularenaRayWrapper(make_action_env(seed=0, map_height=8))
 	env.reset()
 	player_one_mask = env._wrapped_observation(
 		"player_1", env.env._get_obs(env.env._agent_to_idx["player_1"])
@@ -273,28 +296,3 @@ def test_player_one_actions_transform_back_to_raw_coordinates() -> None:
 	transformed = transform_action_index(local_east_harvester, player_idx=1)
 
 	assert transformed == 9 * per_cell + 3 * 24 + 21
-
-
-def test_ray_wrapper_uses_encoded_observation() -> None:
-	env = CellularenaRayWrapper(
-		make_action_env(seed=0, map_height=8),
-		feature_builder=DQNFeatureBuilder(),
-	)
-	observations, _ = env.reset()
-
-	for agent in env.agents:
-		observation = observations[agent]
-		assert observation["observations"].shape == (26784,)
-		assert env.observation_space(agent).contains(observation)
-
-	env.close()
-
-
-def test_ray_wrapper_accepts_algorithm_feature_builder() -> None:
-	env = CellularenaRayWrapper(
-		make_action_env(seed=0, map_height=8),
-		feature_builder=DQNFeatureBuilder(),
-	)
-	observations, _ = env.reset()
-	assert observations["player_0"]["observations"].shape == (26784,)
-	env.close()

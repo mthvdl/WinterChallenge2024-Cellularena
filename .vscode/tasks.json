@@ -1262,6 +1262,62 @@
 				".\\tmp_aca_gpu_test2.ps1"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "cellularena-fixed-replay-tests-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--", "bash", "-lc", "cd /home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game && /home/mvidal/miniforge3/envs/cellularena/bin/python -m pytest -q Core/tests/test_fixed_replay.py Core/tests/test_sac_config.py Core/tests/test_dqn_config.py Games/cellularena/ray/tests/test_config.py"],
+			"isBackground": false
+		},
+		{
+			"label": "cellularena-sac-fixed-full-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/python", "-u", "-m", "Games.cellularena.ray.sac.train", "--config", "Games/cellularena/experiments/sac/config.yaml", "--experiment-name", "sac_fixed_replay_20260929_v2"],
+			"isBackground": true
+		},
+		{
+			"label": "cellularena-sac-preflight-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/python", "-m", "Core.cli.preflight_sac"],
+			"isBackground": false
+		},
+		{
+			"label": "cellularena-sac-fixed-smoke-local-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/python", "-m", "Games.cellularena.ray.sac.train", "--iterations", "1", "--num-env-runners", "0", "--config", "Games/cellularena/experiments/sac/config.yaml", "--experiment-name", "sac_fixed_smoke_local_20260929"],
+			"isBackground": false
+		},
+		{
+			"label": "cellularena-sac-fixed-smoke-runner-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/python", "-m", "Games.cellularena.ray.sac.train", "--iterations", "1", "--num-env-runners", "1", "--config", "Games/cellularena/experiments/sac/config.yaml", "--experiment-name", "sac_fixed_smoke_runner_20260929"],
+			"isBackground": false
+		},
+		{
+			"label": "cellularena-monitoring-ports-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--", "ss", "-ltnp", "( sport = :8000 or sport = :6006 or sport = :8265 )"],
+			"isBackground": false
+		},
+		{
+			"label": "cellularena-sac-v2-viewer-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/python", "-u", "Viewer/viewer_server.py", "--port", "8000", "--replays-dir", "Games/cellularena/experiments/sac"],
+			"isBackground": true
+		},
+		{
+			"label": "cellularena-sac-v2-tensorboard-wsl",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\wsl.exe",
+			"args": ["-d", "Ubuntu", "--cd", "/home/mvidal/git_clones/WinterChallenge2024-Cellularena/rl_coding_game", "--", "/home/mvidal/miniforge3/envs/cellularena/bin/tensorboard", "--logdir", "Games/cellularena/experiments/sac", "--port", "6006", "--host", "127.0.0.1"],
+			"isBackground": true
 		}
 	]
 }

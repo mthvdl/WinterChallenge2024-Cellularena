@@ -19,9 +19,8 @@ from Core.ray_policies import load_policy_from_checkpoint
 from Games.cellularena.engine.tools.game_recorder import save_checkpoint_replay
 from Games.cellularena.factories import make_action_env
 from Games.cellularena.ray.config import resolve_run_and_env_settings
-from Games.cellularena.ray.env_wrapper import make_sac_env_creator
+from Games.cellularena.ray.env_wrapper import make_env_creator
 from Games.cellularena.ray.sac.config import build_config
-from Games.cellularena.ray.sac.feature_builder import SACFeatureBuilder
 from Games.cellularena.ray.sac.modules import CNNSACNetwork
 from Games.cellularena.ray.sac.train import _AlgorithmBot
 
@@ -70,23 +69,16 @@ def main() -> None:
 		experiment_checkpoints_dir("cellularena", "sac", experiment_name)
 	)
 	overrides = load_overrides(config_path)
-	overrides.setdefault("run", {}).update({
+	experiment = overrides.setdefault("experiment", {})
+	experiment.setdefault("evaluator", {}).update({
 		"evaluation_interval": 0,
 		"evaluation_num_env_runners": 0,
-		"num_env_runners": 0,
-		"num_gpus": 0,
 	})
+	experiment.setdefault("runner", {})["num_env_runners"] = 0
+	experiment.setdefault("learner", {})["num_gpus"] = 0
 	_, env_settings = resolve_run_and_env_settings(overrides)
 
-	register_env(
-		"cellularena_ray_sac_replay",
-		make_sac_env_creator(
-			feature_builder_factory=partial(
-				SACFeatureBuilder,
-				history_steps=env_settings["obs_history_steps"],
-			)
-		),
-	)
+	register_env("cellularena_ray_sac_replay", make_env_creator())
 	ray.init(ignore_reinit_error=True, include_dashboard=False)
 	algorithm = build_config(
 		"cellularena_ray_sac_replay",

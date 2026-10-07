@@ -116,8 +116,9 @@ conda run -n <CONDA_ENV> python Core/cli/scaffold_game.py \
 
 This creates:
 - `rl_coding_game/Games/<GAME>/` — env, factories, offline adapter, game engine stubs
-- `rl_coding_game/Games/<GAME>/ray/dqn/feature_builder.py` — no-op DQN feature-builder class
-- `rl_coding_game/Games/<GAME>/ray/sac/feature_builder.py` — no-op SAC feature-builder class
+- `rl_coding_game/Games/<GAME>/ray/env_wrapper.py` — RLlib adapter exposing the raw observation plus `action_mask`
+- `rl_coding_game/Games/<GAME>/ray/dqn/preprocessor.py` — flattening DQN env-to-module preprocessor (ConnectorV2)
+- `rl_coding_game/Games/<GAME>/ray/sac/preprocessor.py` — flattening SAC env-to-module preprocessor (ConnectorV2)
 - `rl_coding_game/Games/<GAME>/ray/dqn/modules.py` — no-op DQN network customization class with an uncommentable model example
 - `rl_coding_game/Games/<GAME>/ray/sac/modules.py` — no-op SAC network customization class for RLlib's current RLModule/catalog API
 - `rl_coding_game/Games/<GAME>/policy/action_mask.py` — no-op discrete action-mask-builder class
@@ -150,8 +151,8 @@ The user must implement the game logic. Guide them to fill in:
 Non-negotiable architecture rules:
 - The game engine must match the CodingGame protocol exactly for input and output semantics.
 - Do not put ML features, engineered channels, normalization, or symmetry transforms inside the engine.
-- Observation feature engineering belongs in an algorithm-specific feature builder.
-- Legal-action mask construction belongs in an algorithm-independent action-mask builder.
+- Observation feature engineering belongs in an algorithm-specific env-to-module preprocessor (RLlib ConnectorV2), not in the env or wrapper.
+- Legal-action mask construction belongs in an algorithm-independent action-mask builder, called by the wrapper (it needs live game state).
 - Action decoding/formatting to protocol commands belongs in an action mapper/runtime adapter.
 
 ### 4a. Core game engine
@@ -203,38 +204,50 @@ Key methods to implement:
 
 ---
 
-## Step 6b — Create algorithm-specific observation feature builders
+## Step 6b — Implement algorithm-specific env-to-module preprocessors
 
-Create one feature-builder class for every supported algorithm:
+Features are built by RLlib's env-to-module ConnectorV2 pipeline
+(https://docs.ray.io/en/latest/rllib/env-to-module-connector.html), not by the
+env. Each algorithm has one preprocessor subclassing
+`Core.ray_connectors.FeaturePreprocessor` (a `MultiAgentObservationPreprocessor`):
 
-- `rl_coding_game/Games/<GAME>/ray/dqn/feature_builder.py`
-- `rl_coding_game/Games/<GAME>/ray/sac/feature_builder.py`
+- `rl_coding_game/Games/<GAME>/ray/dqn/preprocessor.py`
+- `rl_coding_game/Games/<GAME>/ray/sac/preprocessor.py`
 
 For now, only discrete action spaces are supported. Do not scaffold or onboard
 games whose action space is continuous.
 
-Each class must initially be a no-op placeholder with the correct interface:
+The scaffold generates a placeholder that only flattens the raw observation:
 
 ```python
-class DQNFeatureBuilder:
-    def build(self, raw_observation):
-        """Return the raw observation unchanged until customized."""
-        return raw_observation
+class <Game>DQNPreprocessor(FeaturePreprocessor):
+    flatten = True  # DQN: features + mask in one Box; SAC keeps {observations, action_mask}
+
+    def feature_space(self, raw_space):
+        """Return the Box produced by build_features, given one agent's raw env space."""
+
+    def build_features(self, raw_observation):
+        """Encode one agent's raw observation (the dict still contains action_mask)."""
 ```
 
-The SAC class should use the same interface. Do not add feature engineering to
-the scaffold implementation. The classes are extension points for:
+The base class appends the wrapper's `action_mask`, rejects non-finite features
+with an error, and writes the result back into the episode, so the replay
+buffer and the learner train on exactly what the module saw. RLlib derives the
+RLModule observation space from the preprocessor, so no space needs to be
+declared on the wrapper.
 
-- Per-channel normalization or clipping
-- Spatial encoding / feature selection before the network
-- A different flat shape than the default flatten
+The config wires it in with:
 
-The agent must always run through the selected algorithm's feature builder in both:
-- Learning (training rollouts and updates)
-- Inference (runtime/CodingGame loop), once the inference runner is implemented
+```python
+.env_runners(env_to_module_connector=env_to_module_connector(<Game>SACPreprocessor, history_steps=...))
+```
 
-When a builder changes the raw observation shape, it must also expose a matching
-Gymnasium `observation_space` so the wrapper and RLlib use the transformed shape.
+Constructor arguments must be keyword arguments set before `super().__init__()`
+(see `Games/cellularena/ray/sac/preprocessor.py`). Inference outside RLlib
+(CodingGame runner, replay bots) must call the same `build_features()`.
+
+The config also applies `Core.ray_config.complete_episodes_only()`: only
+finished games reach the replay buffer and any env error stops training.
 
 ## Step 6c — Create and wire the SAC network customization hook
 
@@ -315,7 +328,7 @@ The scaffold must not invent game-specific legality rules. The placeholder
 class only establishes where the implementation belongs. Once implemented,
 the same mask builder must be explicitly wired into:
 
-- The PettingZoo/RLlib wrapper during training
+- The PettingZoo/RLlib wrapper during training (it adds `action_mask` to the raw observation)
 - The CodingGame inference runner, if one is implemented
 
 For discrete games, the mask length must equal `action_space.n`, and the policy

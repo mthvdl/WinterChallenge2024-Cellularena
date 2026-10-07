@@ -9,15 +9,21 @@ from typing import Any, Mapping
 
 @dataclass(frozen=True)
 class RayRunSettings:
-    debug: bool = False
     iterations: int = 1
     checkpoint_interval: int = 0
-    replay_interval: int = 0
+    replay_capacity: int = 10_000
+    replay_buffer_rotation: bool = True
+    train_batch_size: int | None = None
+    num_steps_sampled_before_learning_starts: int | None = None
+    gamma: float | None = None
+    replay_alpha: float | None = None
+    replay_beta: float | None = None
     evaluation_interval: int = 0
     evaluation_num_env_runners: int = 0
     evaluation_duration: int = 10
     evaluation_duration_unit: str = "episodes"
     evaluation_explore: bool = False
+    save_evaluation_play: bool = False
     num_env_runners: int = 0
     num_cpus_per_env_runner: int = 1
     num_cpus_for_main_process: int = 2
@@ -36,10 +42,7 @@ class DQNSettings:
     noisy: bool = True
     dueling: bool = True
     double_q: bool = True
-    train_batch_size: int = 32
-    replay_capacity: int = 10_000
-    replay_alpha: float = 0.6
-    replay_beta: float = 0.4
+    training_intensity: float | None = None
 
 
 def load_overrides(path: str | Path) -> dict[str, Any]:
@@ -68,3 +71,36 @@ def settings_dict(settings: Any, overrides: Mapping[str, Any] | None = None) -> 
             raise ValueError(f"Unknown configuration keys: {', '.join(sorted(unknown))}")
         values.update(overrides)
     return values
+
+
+def validate_sampled_episodes(*, samples: list[Any], **kwargs: Any) -> None:
+    """RLlib `on_sample_end` hook: reject unfinished or non-finite episodes on the EnvRunner."""
+    import numpy as np
+    import tree
+
+    for episode in samples:
+        if not episode.is_done:
+            raise RuntimeError(f"EnvRunner returned unfinished episode {episode.id_}.")
+        for agent_id, agent_episode in episode.agent_episodes.items():
+            for column, data in (
+                ("actions", agent_episode.get_actions()),
+                ("rewards", agent_episode.get_rewards()),
+            ):
+                for leaf in tree.flatten(data):
+                    if not np.isfinite(np.asarray(leaf, dtype=np.float64)).all():
+                        raise RuntimeError(
+                            f"Non-finite {column} for agent {agent_id} in episode {episode.id_}."
+                        )
+
+
+def complete_episodes_only(config: Any) -> Any:
+    """Only whole, validated games reach the replay buffer; any env error stops training."""
+    return (
+        config.env_runners(batch_mode="complete_episodes")
+        .fault_tolerance(
+            restart_failed_env_runners=False,
+            restart_failed_sub_environments=False,
+            ignore_env_runner_failures=False,
+        )
+        .callbacks(on_sample_end=validate_sampled_episodes)
+    )

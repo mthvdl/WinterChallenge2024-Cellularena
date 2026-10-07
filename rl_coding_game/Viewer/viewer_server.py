@@ -43,6 +43,18 @@ def _json_response(handler: BaseHTTPRequestHandler, code: int, payload: Dict[str
     handler.wfile.write(body)
 
 
+def _experiment_name_for_replay(path: Path, replays_dir: Path) -> str:
+    """Return a useful experiment label for shared roots and per-run replay roots."""
+    relative_parts = path.parent.relative_to(replays_dir).parts
+    if not relative_parts or relative_parts == (".",):
+        return replays_dir.parent.name if replays_dir.name == "replays" else "Unassigned"
+    if relative_parts[-1] == "replays":
+        relative_parts = relative_parts[:-1]
+    if relative_parts:
+        return Path(*relative_parts).as_posix()
+    return replays_dir.name
+
+
 def _to_viewer_in_memory(raw: Dict[str, Any]) -> Dict[str, Any]:
     # Keep output ephemeral: convert in memory and return only HTTP response body.
     if raw.get("format") == "cellularena-core-raw-v1":
@@ -188,7 +200,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 turns = 0
             relative_path = path.relative_to(self._replays_dir).as_posix()
-            experiment = path.parent.relative_to(self._replays_dir).as_posix() or "Unassigned"
+            experiment = _experiment_name_for_replay(path, self._replays_dir)
             entries.append({
                 "name": path.name,
                 "path": relative_path,

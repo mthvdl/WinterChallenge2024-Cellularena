@@ -1,6 +1,6 @@
 ---
 name: run-experiment
-description: "Use when the user asks to start, resume, or launch local Ray RLlib Rainbow DQN or SAC training for a game."
+description: "Use when the user asks to start, resume, or launch local Ray RLlib Rainbow DQN or SAC training for a game; open the TV replay, Ray trace, and TensorBoard for the run."
 ---
 
 # Run Experiment
@@ -54,10 +54,12 @@ automatically. For Cellularena, use:
 
 ```bash
 ss -ltnp '( sport = :8265 )'
-pgrep -af 'python -m Games\.cellularena\.ray\.<ALGORITHM>\.train'
+pgrep -af 'python( -u)? -m Games[.]cellularena[.]ray[.]<ALGORITHM>[.]train'
 ```
 
 Continue only when port `8265` is free and no matching trainer is running.
+Account for optional Python flags (for example `python -u -m`) when matching
+trainers. Do not start a second trainer just to provide monitoring links.
 
 ## Run Locally
 
@@ -99,34 +101,44 @@ policy from a compatible Ray checkpoint.
 
 ## Config Overrides
 
-Configuration files contain a `run` section, a `league_pool` section, and one
-algorithm section:
+Configuration files contain `env`, `experiment` (with nested `runner`,
+`learner`, and `evaluator`), `league_pool`, and one algorithm section. Any other
+section or key is rejected; see `config.yaml.example` for the full list:
 
 ```yaml
-run:
+env:
   map_height: 8
+experiment:
   iterations: 20
   checkpoint_interval: 5
-  replay_interval: 5
-  num_env_runners: 1
+  replay_capacity: 20000
+  train_batch_size: 64
+  runner:
+    num_env_runners: 1
+  learner:
+    num_gpus: 0
+  evaluator:
+    evaluation_interval: 5
+    save_evaluation_play: true
 league_pool:
   enabled: false
   max_size: 8
 dqn:
-  train_batch_size: 64
-  replay_capacity: 20000
+  noisy: true
 ```
 
 Use `sac` instead of `dqn` for SAC-specific settings. Explicit CLI flags take
 precedence over values in the config file.
 
-Set `run.iterations` in the config to control the training length. An explicit
+Set `experiment.iterations` in the config to control the training length. An explicit
 `--iterations` flag overrides the config value.
 
-Set `run.checkpoint_interval` and `run.replay_interval` to positive iteration
-counts to control periodic artifact creation. `0` disables periodic replay and
-keeps the final checkpoint save. Checkpoints and replays are written under the
-derived experiment directories.
+Set `experiment.checkpoint_interval` and `experiment.evaluator.evaluation_interval` to positive
+iteration counts to control periodic artifact creation. Evaluation runs in parallel with
+training (current policy vs previous checkpoint) and needs `evaluation_num_env_runners >= 1`;
+with `save_evaluation_play: true` the first evaluation game of each round is saved as a TV
+replay. `0` disables evaluation and keeps the final checkpoint save. Checkpoints and replays
+are written under the derived experiment directories.
 
 At each checkpoint interval, the learner checkpoint is promoted into the
 experiment's bounded `league_pool` (controlled by `league_pool.max_size`, only
@@ -150,3 +162,45 @@ Before a longer run, confirm the entry point parses and run one iteration with
 `--num-env-runners 0`. Then repeat with one worker. Check that the result has a
 training iteration and sampled environment steps, and that the checkpoint path
 is written below the experiment's `checkpoints` directory.
+
+## Open the run's monitoring views
+
+After launching an experiment, **open all three pages immediately in the
+integrated browser** (do not merely print URLs): the TV replay viewer, the
+live Ray Dashboard trace/timeline, and TensorBoard. Do not wait for a replay
+interval, poll for a replay, or revisit the viewer later on the user's behalf.
+Perform this for both smoke and full runs. Do not block the training
+process while starting the viewer or TensorBoard; keep those servers running
+as independent background processes. Always use the fixed ports: viewer `8000`,
+TensorBoard `6006`, Ray Dashboard `8265`. Never start a server on another port.
+Check `ss -ltnp` and the endpoint health before starting either server; reuse an
+existing server if it already points at this run. If the port is held by a server
+for a different run, ask the user before replacing it; never kill it automatically.
+Verify each page
+loads, but do not require metrics or replay artifacts to exist yet. Report the
+URL and any unavailable view.
+
+- **TV replay (Cellularena):** SAC and DQN write `*.viewer.json` to
+  `Games/cellularena/experiments/<ALGORITHM>/<EXPERIMENT_NAME>/replays/` at each
+  `evaluation_interval` when `save_evaluation_play` is true (not immediately on launch). From
+  `rl_coding_game/`, serve the run's directory (for example, run
+  `python Viewer/viewer_server.py --port 8000 --replays-dir Games/cellularena/experiments/sac/<EXPERIMENT_NAME>/replays`)
+  and open `http://127.0.0.1:8000/view/index.html` immediately. If a replay
+  already exists, it can be selected; otherwise simply leave the viewer open
+  for the user.
+- **Ray trace:** Ray starts its Dashboard with `include_dashboard=True`. Open
+  `http://127.0.0.1:8265/` and navigate to the run's timeline/tracing view
+  using the Dashboard UI; confirm the dashboard belongs to the running Ray
+  instance. If the trace requires explicit recording or is not available,
+  report that instead of claiming it is open. Never bind a second Dashboard
+  to another port to work around a conflict.
+- **TensorBoard:** The shared training loop writes events under
+  `Games/<GAME>/experiments/<ALGORITHM>/<EXPERIMENT_NAME>/tensorboard/`.
+  Start it for this run without waiting for event files (for example,
+  `conda run -n cellularena tensorboard --logdir Games/<GAME>/experiments/<ALGORITHM>/<EXPERIMENT_NAME>/tensorboard --port 6006`)
+  from `rl_coding_game/`. Open `http://127.0.0.1:6006/`; scalars may appear
+  later. Follow the `tensorboard` skill for details.
+
+If browser, port forwarding, a service, or an artifact is unavailable, say
+which view could not be opened and why; keep the training run intact. Include
+the three links (and any unavailable status) in the run summary.

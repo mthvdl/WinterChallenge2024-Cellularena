@@ -164,6 +164,59 @@ def _serialize_frame_data(game: Game, events: List[Dict]) -> str:
     return "\n".join(lines)
 
 
+class EpisodeRecorder:
+    """Accumulate viewer frames for one game driven step by step elsewhere."""
+
+    def __init__(self) -> None:
+        self.frames: List[Dict[str, Any]] = []
+        self._before: Optional[_GameSnapshot] = None
+
+    def start(self, game: Game) -> None:
+        self.frames = [
+            {"key": "0", "data": _serialize_global_data(game), "stdout": ["", ""],
+             "stderr": ["", ""], "gameInfo": [], "summary": None}
+        ]
+        self._before = _snapshot(game)
+
+    def record_step(self, game: Game) -> None:
+        after = _snapshot(game)
+        events = _build_events(self._before, after)
+        turn = len(self.frames)
+        self.frames.append({
+            "key": str(turn),
+            "data": _serialize_frame_data(game, events),
+            "stdout": _derive_commands(events, self._before),
+            "stderr": ["", ""],
+            "gameInfo": [],
+            "summary": f"Turn {turn}",
+        })
+        self._before = after
+
+
+def write_viewer_replay(
+    frames: List[Dict[str, Any]],
+    output_dir: Path,
+    replay_name: str,
+    experiment_name: str,
+    global_step: int,
+    opponent_name: str,
+) -> Path:
+    """Write ``<replay_name>_vs_<opponent_name>.viewer.json`` into ``output_dir``."""
+    safe_opp = opponent_name.replace("/", "_").replace(":", "_").replace(" ", "_")
+    viewer_data = {
+        "gameId": None,
+        "agents": [
+            {"index": 0, "name": f"{experiment_name}@step_{global_step}"},
+            {"index": 1, "name": safe_opp},
+        ],
+        "frames": frames,
+    }
+    out_path = Path(output_dir) / f"{replay_name}_vs_{safe_opp}.viewer.json"
+    out_path.write_text(json.dumps(viewer_data))
+    log.info("Replay saved: %s (%d turns)", out_path.name, len(frames) - 1)
+    return out_path
+
+
 def record_episode(
     env_factory: Callable,
     main_bot: Any,
@@ -191,14 +244,8 @@ def record_episode(
     env = env_factory()
     obs, _ = env.reset()
 
-    global_data_str = _serialize_global_data(env._game)
-    frames: List[Dict[str, Any]] = [
-        {"key": "0", "data": global_data_str, "stdout": ["", ""],
-         "stderr": ["", ""], "gameInfo": [], "summary": None}
-    ]
-
-    before = _snapshot(env._game)
-    turn = 1
+    recorder = EpisodeRecorder()
+    recorder.start(env._game)
     _supports_mask = hasattr(env, "action_mask")
     joint_action_mode = all(
         hasattr(bot, "select_joint_action") for bot in (main_bot, opponent_bot)
@@ -228,26 +275,13 @@ def record_episode(
         else:
             obs, _, terms, truncs, _ = env.step(actions)
 
-        after = _snapshot(env._game)
-        events = _build_events(before, after)
-        cmds = _derive_commands(events, before)
-        frame_data_str = _serialize_frame_data(env._game, events)
-        frames.append({
-            "key": str(turn),
-            "data": frame_data_str,
-            "stdout": cmds,
-            "stderr": ["", ""],
-            "gameInfo": [],
-            "summary": f"Turn {turn}",
-        })
-        before = after
-        turn += 1
+        recorder.record_step(env._game)
 
         if all(terms.values()) or all(truncs.values()):
             break
 
     env.close()
-    return frames
+    return recorder.frames
 
 
 def save_checkpoint_replay(
@@ -273,19 +307,8 @@ def save_checkpoint_replay(
         log.exception("game_recorder: episode recording failed — skipping replay save.")
         return checkpoint_path  # non-fatal
 
-    safe_opp = opponent_name.replace("/", "_").replace(":", "_").replace(" ", "_")
-    viewer_data = {
-        "gameId": None,
-        "agents": [
-            {"index": 0, "name": f"{experiment_name}@step_{global_step}"},
-            {"index": 1, "name": safe_opp},
-        ],
-        "frames": frames,
-    }
-
     output_dir = output_dir or (checkpoint_path if checkpoint_path.is_dir() else checkpoint_path.parent)
     checkpoint_name = checkpoint_path.name if checkpoint_path.is_dir() else checkpoint_path.stem
-    out_path = output_dir / f"{checkpoint_name}_vs_{safe_opp}.viewer.json"
-    out_path.write_text(json.dumps(viewer_data))
-    log.info("Checkpoint replay saved: %s (%d turns)", out_path.name, len(frames) - 1)
-    return out_path
+    return write_viewer_replay(
+        frames, output_dir, checkpoint_name, experiment_name, global_step, opponent_name
+    )

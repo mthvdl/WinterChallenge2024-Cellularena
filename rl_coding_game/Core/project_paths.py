@@ -7,6 +7,7 @@ Layout
     Games/<game>/experiments/<algorithm>/<experiment>/checkpoints
     Games/<game>/experiments/<algorithm>/<experiment>/league_pool
     Games/<game>/experiments/<algorithm>/<experiment>/replays
+    Games/<game>/experiments/<algorithm>/<experiment>/replay_buffer.pkl
 """
 from __future__ import annotations
 
@@ -50,6 +51,10 @@ def experiment_replays_dir(game: str, algorithm: str, experiment: str) -> Path:
 
 def experiment_snapshot_dir(game: str, algorithm: str, experiment: str) -> Path:
     return experiment_root(game, algorithm, experiment) / "league_pool"
+
+
+def experiment_replay_buffer_path(game: str, algorithm: str, experiment: str) -> Path:
+    return experiment_root(game, algorithm, experiment) / "replay_buffer.pkl"
 
 
 def ensure_dir(path: Path) -> Path:

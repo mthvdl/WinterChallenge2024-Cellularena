@@ -15,6 +15,28 @@ class FakeAlgorithm:
 		return path
 
 
+def test_train_overwrites_replay_buffer_file_at_each_checkpoint(tmp_path, monkeypatch) -> None:
+	algorithm = FakeAlgorithm()
+	algorithm.local_replay_buffer = object()
+	saves = []
+	monkeypatch.setattr(
+		"Core.ray_training.save_replay_buffer",
+		lambda buffer, path: saves.append((buffer, path, algorithm.calls)),
+	)
+	buffer_path = tmp_path / "replay_buffer.pkl"
+
+	train(
+		algorithm,
+		5,
+		tmp_path / "checkpoint",
+		checkpoint_interval=2,
+		replay_buffer_path=buffer_path,
+	)
+
+	buffer = algorithm.local_replay_buffer
+	assert saves == [(buffer, buffer_path, 2), (buffer, buffer_path, 4), (buffer, buffer_path, 5)]
+
+
 def test_train_runs_iterations_and_saves_checkpoint(tmp_path) -> None:
 	algorithm = FakeAlgorithm()
 	seen = []
@@ -28,19 +50,19 @@ def test_train_runs_iterations_and_saves_checkpoint(tmp_path) -> None:
 	assert list((tmp_path / "tensorboard").glob("events.out.tfevents.*"))
 
 
-def test_train_supports_independent_checkpoint_and_replay_intervals(tmp_path) -> None:
+def test_train_prepares_evaluation_before_evaluated_iterations(tmp_path) -> None:
 	algorithm = FakeAlgorithm()
 	checkpoints = []
-	replays = []
+	evaluations = []
 
 	train(
 		algorithm,
 		5,
 		tmp_path / "checkpoint",
 		checkpoint_callback=lambda path, step: checkpoints.append((path, step)),
-		replay_callback=replays.append,
+		evaluation_callback=lambda step: evaluations.append((step, algorithm.calls)),
 		checkpoint_interval=2,
-		replay_interval=3,
+		evaluation_interval=3,
 	)
 
 	assert algorithm.calls == 5
@@ -49,7 +71,7 @@ def test_train_supports_independent_checkpoint_and_replay_intervals(tmp_path) ->
 		(tmp_path / "checkpoint" / "checkpoint_4", 4),
 		(tmp_path / "checkpoint" / "checkpoint_5", 5),
 	]
-	assert replays == [3]
+	assert evaluations == [(3, 2)]
 
 
 def test_resumed_train_saves_checkpoint_at_final_iteration(tmp_path) -> None:

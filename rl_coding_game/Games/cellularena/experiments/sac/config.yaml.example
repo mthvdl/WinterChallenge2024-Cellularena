@@ -1,38 +1,94 @@
 # Cellularena SAC CPU profile. Copy to config.yaml for a run.
+# This is a minimal example configuration for training a Soft Actor-Critic agent.
+# Comments explain the purpose of each parameter so you can tune training quickly.
+
 env:
+  # Environment section: map generation and observation/reward setup.
+  # Number of rows in the game board.
   map_height: 8
-  #map_width: 16  # Defaults to map_height * 2 when unset.
-  wall_ratio: 0.2  # Fraction of the left half turned into obstacles; random 0-0.35 when unset.
-  protein_ratio: 0.4  # Fraction of the left half seeded with proteins; random 0-0.15 when unset.
+  # Optional board width. If omitted, it defaults to map_height * 2.
+  #map_width: 16
+  # Fraction of the left half of the board filled with walls/obstacles.
+  wall_ratio: 0.2
+  # Fraction of the left half of the board seeded with protein resources.
+  protein_ratio: 0.4
+  # How many previous observation frames are stacked into the input state.
   obs_history_steps: 1
+  # Whether extra shaping rewards are added beyond the base game reward.
   reward_shaping: false
-run:
-  debug: false  # Keep Ray available after training for interactive debugging.
+
+experiment:
+  # Training loop settings for the whole experiment.
+  # An iteration is one training step of the RL loop: env runners collect experience,
+  # the learner updates the policy using recent samples, and the trainer advances once.
+  # So 500 iterations means the agent goes through the training loop 500 times.
   iterations: 500
+  # Save a model checkpoint every N training iterations.
   checkpoint_interval: 10
-  replay_interval: 10
-  evaluation_interval: 10
-  evaluation_num_env_runners: 1
-  evaluation_duration: 10
-  evaluation_duration_unit: episodes
-  evaluation_explore: false
-  num_env_runners: 10
-  num_cpus_per_env_runner: 1
-  num_cpus_for_main_process: 2
-  num_gpus: 0
-league_pool:
-  enabled: true
-  max_size: 10
-sac:
-  train_batch_size: 256
-  replay_type: MultiAgentPrioritizedEpisodeReplayBuffer
-  #num_steps_sampled_before_learning_starts: 5000
-  #gamma: 0.99
-  #actor_lr: 0.00005
-  #critic_lr: 0.00005
-  #target_entropy: 2.5  # Defaults to 0.5 * log(4033) if unset; RLlib's "auto" is -1 for any Discrete space.
-  #initial_alpha: 1.0
-  #alpha_lr: 0.0001
+  # Maximum number of transitions retained in the replay buffer; shared across algorithms.
   replay_capacity: 10000
+  # Set false to stop collecting games once the buffer is full and keep learning
+  # from the same stored games.
+  # In both modes the buffer is overwritten at each checkpoint in
+  # <experiment>/replay_buffer.pkl and reloaded by --resume-checkpoint.
+  # Evaluation games still play if evaluation_interval is nonzero.
+  replay_buffer_rotation: false
+  # Mini-batch size used for each learning update; algorithm defaults apply when unset.
+  train_batch_size: 256
+  # Environment steps before learning begins; leave unset for RLlib defaults.
+  #num_steps_sampled_before_learning_starts: 5000
+  # Discount factor for future rewards.
+  #gamma: 0.99
+  # Priority exponent for prioritized experience replay.
   #replay_alpha: 0.6
+  # Importance-sampling correction exponent for prioritized replay.
   #replay_beta: 0.4
+  runner:
+    # Parallel environment samplers that generate experience.
+    # Number of runner workers running environments at once.
+    num_env_runners: 10
+    # CPU cores allocated to each env runner process.
+    num_cpus_per_env_runner: 1
+  learner:
+    # Learner process allocation.
+    # CPUs reserved for the main learning process.
+    num_cpus_for_main_process: 2
+    # Number of GPUs available to the learner; 0 means CPU-only training.
+    num_gpus: 0
+  evaluator:
+    # Evaluation runs asynchronously, in parallel with training, and pits the current
+    # policy (player 0) against the previous checkpoint (player 1).
+    # Run evaluation every N training iterations; 0 disables it.
+    evaluation_interval: 10
+    # Number of parallel env workers during evaluation; must be >= 1 when evaluation is on.
+    evaluation_num_env_runners: 1
+    # How many episodes are evaluated in each evaluation round.
+    evaluation_duration: 50
+    # Unit for evaluation_duration.
+    evaluation_duration_unit: episodes
+    # Whether the evaluator uses exploration/noise or acts greedily.
+    evaluation_explore: false
+    # Save the first evaluation game of each round as a TV replay in <experiment>/replays.
+    save_evaluation_play: true
+
+league_pool:
+  # Self-play pool for opponent mixing and historical snapshots.
+  # Turn league-based opponent sampling on or off.
+  enabled: false
+  # Maximum number of opponents kept in the league pool.
+  max_size: 10
+
+sac:
+  # Soft Actor-Critic training hyperparameters.
+  # Replay buffer type used for episodes and prioritized sampling.
+  replay_type: MultiAgentPrioritizedEpisodeReplayBuffer
+  # Learning rate for the actor policy network.
+  #actor_lr: 0.00005
+  # Learning rate for the critic/value networks.
+  #critic_lr: 0.00005
+  # Target entropy for SAC; controls exploration pressure. Higher values encourage more randomness.
+  target_entropy: 1.84
+  # Initial entropy coefficient value. If unset, RLlib will choose a default.
+  #initial_alpha: 1.0
+  # Learning rate for the alpha temperature parameter when it is learned automatically.
+  #alpha_lr: 0.0001

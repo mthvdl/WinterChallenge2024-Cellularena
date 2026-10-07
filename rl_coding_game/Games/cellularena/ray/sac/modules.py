@@ -26,7 +26,7 @@ from torch import nn
 
 from ray.rllib.algorithms.sac import SACConfig
 from Games.cellularena.engine.action_adapter import N_GROW_CHANNELS
-from Games.cellularena.ray.sac.feature_builder import MAX_H, MAX_W, N_CHANNELS
+from Games.cellularena.engine.obs.paper_features import MAX_H, MAX_W, N_CHANNELS
 
 
 def _orthogonal_init(module: nn.Module, gain: float) -> None:
