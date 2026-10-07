@@ -88,38 +88,26 @@ def _ray_wrapper(game: str) -> str:
         from Games.{game}.policy.action_mask import {cls}ActionMaskBuilder
 
 
-        class FeatureBuilder:
-            """Identity feature builder until an algorithm-specific encoder is selected."""
-
-            def build(self, raw_observation: Any) -> Any:
-                return raw_observation
-
-
         class {cls}RayWrapper(ParallelEnv):
-            """Expose transformed observations and optional legal-action masks."""
+            """Expose raw observations plus the legal-action mask; features are built by the env-to-module preprocessor."""
 
-            def __init__(self, env: {cls}Env, feature_builder: Any = None) -> None:
+            def __init__(self, env: {cls}Env) -> None:
                 self.env = env
-                self.feature_builder = feature_builder or FeatureBuilder()
                 self.action_mask_builder = {cls}ActionMaskBuilder()
                 self.possible_agents = list(env.possible_agents)
                 self.agents = []
                 self.metadata = env.metadata
 
             def observation_space(self, agent: str) -> spaces.Space:
-                observation_space = getattr(self.feature_builder, "observation_space", None)
-                if observation_space is None:
-                    observation_space = self.env.observation_space(agent)
+                raw = self.env.observation_space(agent)
+                raw_spaces = dict(raw.spaces) if isinstance(raw, spaces.Dict) else {{OBSERVATIONS_KEY: raw}}
                 return spaces.Dict({{
-                    OBSERVATIONS_KEY: observation_space,
-                    ACTION_MASK_KEY: spaces.Box(0, 1, shape=(self.env.action_space(agent).n,), dtype=np.float32)
+                    **raw_spaces,
+                    ACTION_MASK_KEY: spaces.Box(0, 1, shape=(self.env.action_space(agent).n,), dtype=np.float32),
                 }})
 
             def action_space(self, agent: str) -> spaces.Space:
                 return self.env.action_space(agent)
-
-            def transform_observation(self, agent: str, observation: Any) -> Any:
-                return observation
 
             def action_mask(self, agent: str) -> np.ndarray:
                 return self.action_mask_builder.build(
@@ -129,8 +117,8 @@ def _ray_wrapper(game: str) -> str:
                 )
 
             def _wrap(self, agent: str, observation: Any) -> Dict[str, Any]:
-                return {{OBSERVATIONS_KEY: self.feature_builder.build(observation),
-                    ACTION_MASK_KEY: self.action_mask(agent)}}
+                raw = observation if isinstance(observation, dict) else {{OBSERVATIONS_KEY: observation}}
+                return {{**raw, ACTION_MASK_KEY: self.action_mask(agent)}}
 
             def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None):
                 observations, infos = self.env.reset(seed=seed, options=options)
@@ -148,29 +136,45 @@ def _ray_wrapper(game: str) -> str:
                 self.env.close()
 
 
-        def make_env_creator(feature_builder_factory=FeatureBuilder):
+        def make_env_creator():
             def env_creator(env_config=None):
                 from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
-                return ParallelPettingZooEnv({cls}RayWrapper(make_env(),
-                    feature_builder=feature_builder_factory()))
+                return ParallelPettingZooEnv({cls}RayWrapper(make_env()))
             return env_creator
     ''')
 
 
-def _feature_builder(game: str, algorithm: str) -> str:
+def _preprocessor(game: str, algorithm: str) -> str:
     cls = _class(game)
+    flatten = "True" if algorithm == "dqn" else "False"
     return textwrap.dedent(f'''\
-        """{algorithm.upper()} feature customisation for {game}."""
+        """{algorithm.upper()} env-to-module preprocessor for {game}."""
         from __future__ import annotations
 
         from typing import Any
 
+        import numpy as np
+        from gymnasium import spaces
 
-        class {cls}{algorithm.upper()}FeatureBuilder:
-            """Identity feature builder until the game's encoding is implemented."""
+        from Core.action_mask import ACTION_MASK_KEY
+        from Core.ray_connectors import FeaturePreprocessor
 
-            def build(self, raw_observation: Any) -> Any:
-                return raw_observation
+
+        class {cls}{algorithm.upper()}Preprocessor(FeaturePreprocessor):
+            """Flatten the raw observation until the game's encoding is implemented."""
+
+            flatten = {flatten}
+
+            def feature_space(self, raw_space: spaces.Dict) -> spaces.Box:
+                self._raw_space = spaces.Dict(
+                    {{k: v for k, v in raw_space.spaces.items() if k != ACTION_MASK_KEY}}
+                )
+                return spaces.flatten_space(self._raw_space)
+
+            def build_features(self, raw_observation: dict[str, Any]) -> np.ndarray:
+                return spaces.flatten(
+                    self._raw_space, {{k: raw_observation[k] for k in self._raw_space.spaces}}
+                )
     ''')
 
 
@@ -244,31 +248,34 @@ def _class(game: str) -> str:
 
 def _ray_config(game: str, algorithm: str) -> str:
     config_cls = "DQNConfig" if algorithm == "dqn" else "SACConfig"
-    network_import = ""
-    network_parameter = ""
-    network_return = ""
-    if algorithm in ("dqn", "sac"):
-        cls = _class(game)
-        network_import = f"from typing import Callable\nfrom Games.{game}.ray.{algorithm}.modules import {cls}{algorithm.upper()}Network\n"
-        network_parameter = f", network_factory: Callable[[], {cls}{algorithm.upper()}Network] = {cls}{algorithm.upper()}Network"
-        network_return = "\n            config = network_factory().customize(config)"
+    cls = _class(game)
+    prefix = f"{cls}{algorithm.upper()}"
     return textwrap.dedent(f'''\
         """Stock Ray RLlib {algorithm.upper()} configuration for {game}."""
-        {network_import}
+        from typing import Callable
+
         from ray.rllib.algorithms.{algorithm} import {config_cls}
+        from Core.ray_config import complete_episodes_only
+        from Core.ray_connectors import env_to_module_connector
         from Core.ray_policies import policy_setup
+        from Games.{game}.ray.{algorithm}.modules import {prefix}Network
+        from Games.{game}.ray.{algorithm}.preprocessor import {prefix}Preprocessor
 
 
-        def build_config(env_name="{game}_ray", frozen_opponent=False,
-                         opponent_policy_ids=("opponent",){network_parameter}):
+        def build_config(env_name="{game}_ray", num_env_runners=0, frozen_opponent=False,
+                         opponent_policy_ids=("opponent",),
+                         network_factory: Callable[[], {prefix}Network] = {prefix}Network):
             policies, mapping, policies_to_train = policy_setup(
                 frozen_opponent, tuple(opponent_policy_ids)
             )
             config = ({config_cls}().environment(env=env_name).framework("torch")
-                    .env_runners(num_env_runners=0).multi_agent(
+                    .env_runners(
+                        num_env_runners=num_env_runners,
+                        env_to_module_connector=env_to_module_connector({prefix}Preprocessor),
+                    ).multi_agent(
                         policies=policies, policy_mapping_fn=mapping,
-                        policies_to_train=policies_to_train)){network_return}
-            return config
+                        policies_to_train=policies_to_train))
+            return network_factory().customize(complete_episodes_only(config))
     ''')
 
 
@@ -288,7 +295,6 @@ def _ray_train(game: str, algorithm: str) -> str:
         from Core.ray_policies import load_policy_from_checkpoint
         from Core.ray_training import print_metrics, train
         from Games.{game}.ray.env_wrapper import make_env_creator
-        from Games.{game}.ray.{algorithm}.feature_builder import {cls}{algorithm.upper()}FeatureBuilder
         {network_import}from Games.{game}.ray.{algorithm}.config import build_config
 
 
@@ -302,8 +308,7 @@ def _ray_train(game: str, algorithm: str) -> str:
             parser.add_argument("--checkpoint-dir", type=Path, default=None)
             args = parser.parse_args()
             policy_ids = tuple(args.opponent_policy or ("opponent",))
-            register_env("{game}_ray", make_env_creator(
-                feature_builder_factory={cls}{algorithm.upper()}FeatureBuilder))
+            register_env("{game}_ray", make_env_creator())
             ray.init(ignore_reinit_error=True, include_dashboard=False)
             algorithm = build_config(
                 env_name="{game}_ray",
@@ -710,36 +715,52 @@ def _offline_adapter(game: str) -> str:
     cls = _class(game)
     return textwrap.dedent(f'''\
         """
-        {cls} offline replay adapter.
+        {cls} offline replay adapter (DEFERRED).
 
-        TODO: Implement iter_transitions() to convert replay turns into RL Transitions.
-              Reference: cellularena/engine/offline_replay_adapter.py
+        Offline/imitation pretraining is a deferred capability during the Ray
+        migration (see the framework requirements, Requirement 17). The online
+        self-play path in ``ray/dqn/train.py`` and ``ray/sac/train.py`` is the
+        supported way to train; this module is a self-contained stub so the game
+        package stays importable without a framework-level offline adapter.
+
+        When offline pretraining is implemented, finish iter_transitions() to
+        convert replay turns into RL transitions.
 
         Steps
         -----
         1. Load a replay with load_replay(path)
         2. Initialise a Game from replay.global_data
         3. For each turn: encode observation, encode action, call game.step_replay(),
-           encode next observation, yield Transition(obs, action, reward, next_obs, done)
+           encode next observation, yield a Transition(obs, action, reward, next_obs, done)
         """
         from __future__ import annotations
 
+        from dataclasses import dataclass, field
         from pathlib import Path
-        from typing import Iterable
-
-        from Core.experience import Transition
-        from Core.offline_adapter import ReplayTransitionAdapter
+        from typing import Any, Dict, Iterable
 
         from Games.{game}.engine.game import Game
         from Games.{game}.engine.replay_loader import load_replay
 
 
-        def create_adapter() -> "ReplayTransitionAdapter":
+        @dataclass
+        class Transition:
+            """A single (s, a, r, s', done) tuple for offline learning."""
+
+            obs: Any
+            action: Any
+            reward: float
+            next_obs: Any
+            done: bool
+            info: Dict[str, Any] = field(default_factory=dict)
+
+
+        def create_adapter() -> "{cls}ReplayAdapter":
             return {cls}ReplayAdapter()
 
 
-        class {cls}ReplayAdapter(ReplayTransitionAdapter):
-            """Convert {game} replay files into RL Transition objects."""
+        class {cls}ReplayAdapter:
+            """Convert {game} replay files into Transition objects (deferred)."""
 
             def iter_transitions(self, replay_path: Path) -> Iterable[Transition]:
                 replay = load_replay(replay_path)
@@ -789,7 +810,7 @@ def _smoke_tests(game: str) -> str:
     return textwrap.dedent(f'''\
         """Smoke tests for the {game} PettingZoo environment.
 
-        Run:  cd rl_coding_game && python test_{game}.py
+        Run:  cd rl_coding_game && python -m pytest Games/{game}/engine/tests
         """
         from __future__ import annotations
 
@@ -892,8 +913,8 @@ def scaffold(game: str, puzzle_id: str, conda_env: str, overwrite: bool = False)
         ensure_dir(algorithm_dir)
         _write(algorithm_dir / "__init__.py", f'"""Ray {algorithm.upper()} integration for {game}."""\n', overwrite)
         _write(
-            algorithm_dir / "feature_builder.py",
-            _feature_builder(game, algorithm),
+            algorithm_dir / "preprocessor.py",
+            _preprocessor(game, algorithm),
             overwrite,
         )
         if algorithm == "dqn":
@@ -937,10 +958,10 @@ Scaffold complete for '{game}'.
 Next steps
 ----------
 1. Download game rules (writes rules.md, rules.html, rules.txt):
-    conda run -n {conda_env} python download_rules.py --game {game} --puzzle-id {puzzle_id}
+    conda run -n {conda_env} python -m Core.cli.download_rules --game {game} --puzzle-id {puzzle_id}
 
 2. Download expert replays:
-    conda run -n {conda_env} python download_games.py --game {game} --puzzle-id {puzzle_id}
+    conda run -n {conda_env} python -m Core.cli.download_games --game {game} --puzzle-id {puzzle_id}
 
 3. Implement the game engine (protocol-faithful only):
     Games/{game}/engine/game.py          ← core logic (step, get_observation)
@@ -952,14 +973,14 @@ Next steps
 4b. Implement the action mapper (required):
     Games/{game}/bots/action_mapper.py   ← agent action -> protocol commands
 
-5. Implement the offline adapter:
+5. (Deferred) Offline adapter stub — only needed if/when offline pretraining lands:
     Games/{game}/engine/offline_replay_adapter.py  ← iter_transitions, _encode_action
 
 6. Run smoke tests:
-    conda run -n {conda_env} python test_{game}.py
+    conda run -n {conda_env} python -m pytest Games/{game}/engine/tests
 
 7. Validate engine against downloaded replays (once implemented):
-    conda run -n {conda_env} python validate_engine.py --game {game}
+    conda run -n {conda_env} python -m Games.{game}.engine.tools.validate_engine
 
 8. Run local Ray training:
     conda run -n {conda_env} python -m Games.{game}.ray.dqn.train \\

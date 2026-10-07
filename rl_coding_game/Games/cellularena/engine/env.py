@@ -238,10 +238,9 @@ class CellularenaEnv(ParallelEnv):
 		"""Return a boolean mask of shape ``(MAX_ROOTS, ACTIONS_PER_ORG)``.
 
 		``True`` indicates a legal action for *agent* in the current state.
-		Any env that wishes to support action masking must implement this
-		method; :class:`~rl.env_runner.EnvRunner` detects it via
-		``hasattr(env, "action_mask")`` and forwards the mask to
-		:meth:`~rl.base_bot.RLBot.select_action`.
+		The PettingZoo env wrapper and the ConnectorV2 feature preprocessor
+		read this mask (via the ``action_mask`` entry on the observation) so
+		the RLModule can suppress illegal actions during sampling and learning.
 		"""
 		player_idx = self._agent_to_idx[agent]
 		return self._game.compute_action_mask(player_idx)

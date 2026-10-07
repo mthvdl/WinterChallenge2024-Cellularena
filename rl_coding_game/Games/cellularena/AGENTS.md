@@ -11,11 +11,14 @@ For generic framework commands (training and downloading), see `rl_coding_game/A
 ## Run tests
 
 ```bash
-# PettingZoo env smoke tests
-python test_env.py
+# All engine + env smoke tests
+python -m pytest Games/cellularena/engine/tests
 
-# Replay infrastructure tests
-python test_replay.py
+# PettingZoo env smoke tests only
+python -m pytest Games/cellularena/engine/tests/test_env.py
+
+# Replay infrastructure tests only
+python -m pytest Games/cellularena/engine/tests/test_replay.py
 ```
 
 ## Run stock Ray algorithms
@@ -46,25 +49,26 @@ written with `--checkpoint-dir <path>`.
 Needed before engine validation if no real replays have been downloaded yet.
 
 ```bash
-python generate_test_replay.py            # 5 replays (seeds 0-4)
-python generate_test_replay.py --count 10
+python -m Games.cellularena.engine.tools.generate_test_replay            # 5 replays (seeds 0-4)
+python -m Games.cellularena.engine.tools.generate_test_replay --count 10
 ```
 
-Output: `replays/synthetic_9000000XX.json`
+Output: `Games/cellularena/experiments/shared/replays/synthetic_9000000XX.json`
 
 ---
 
 ## Validate the engine
 
 ```bash
-# Validate all replays in replays/
-python validate_engine.py
+# Validate all replays in the shared replays dir
+python -m Games.cellularena.engine.tools.validate_engine
 
 # Validate a specific file
-python validate_engine.py replays/synthetic_900000000.json
+python -m Games.cellularena.engine.tools.validate_engine \
+    Games/cellularena/experiments/shared/replays/synthetic_900000000.json
 
 # Loop mode: re-run automatically after fixing a bug
-python validate_engine.py --loop
+python -m Games.cellularena.engine.tools.validate_engine --loop
 ```
 
 Success:
@@ -84,10 +88,10 @@ Fix failures by editing `Games/cellularena/engine/game.py`, then re-run.
 ## Export self-play replay for viewer
 
 ```bash
-python export_episode_replay.py --seed 123 --policy greedy
-python replay_transform.py --mode to-viewer \
-    --input replays/selfplay_greedy_123.json \
-    --output replays/selfplay_greedy_123.viewer.json
+python -m Games.cellularena.engine.tools.export_episode_replay --seed 123 --policy greedy
+python -m Games.cellularena.engine.tools.replay_transform --mode to-viewer \
+    --input Games/cellularena/experiments/shared/replays/selfplay_greedy_123.json \
+    --output Games/cellularena/experiments/shared/replays/selfplay_greedy_123.viewer.json
 ```
 
 ---
@@ -101,7 +105,7 @@ npm run build
 cd ..
 python -m http.server 8000
 # Open: http://localhost:8000/Viewer/view/index.html
-# Load: ../replays/selfplay_greedy_0.viewer.json
+# Load: ../../Games/cellularena/experiments/shared/replays/selfplay_greedy_0.viewer.json
 ```
 
 Runtime conversion (no `.viewer.json` files written):
@@ -126,21 +130,26 @@ python Viewer/viewer_server.py --port 8000
 
 | File | What it does |
 |---|---|
-| `games/cellularena/env.py` | PettingZoo `ParallelEnv` |
-| `games/cellularena/factories.py` | `make_env()` factory |
-| `games/cellularena/offline_replay_adapter.py` | Converts core replays → RL transitions |
-| `games/cellularena/game/game.py` | All game logic, rules, replay API |
-| `games/cellularena/game/grid.py` | Grid, Tile, Protein |
-| `games/cellularena/game/organ.py` | Organ, OrganType (with protein costs) |
-| `games/cellularena/game/grid_maker.py` | Random symmetric grid generation |
-| `games/cellularena/game/coord.py` | Coord, Direction |
-| `games/cellularena/game/replay_loader.py` | Parse CodingGame replay JSON |
+| `Games/cellularena/engine/action_env.py` | PettingZoo `ParallelEnv` (collapsed Discrete action space) |
+| `Games/cellularena/engine/env.py` | Base engine env (native MultiDiscrete observation builder) |
+| `Games/cellularena/factories.py` | `make_env()` / `make_action_env()` factories |
+| `Games/cellularena/engine/action_adapter.py` | Encode/decode + action-mask logic (Discrete 4033 ↔ MultiDiscrete) |
+| `Games/cellularena/engine/game.py` | All game logic, rules, replay API |
+| `Games/cellularena/engine/grid.py` | Grid, Tile, Protein |
+| `Games/cellularena/engine/organ.py` | Organ, OrganType (with protein costs) |
+| `Games/cellularena/engine/grid_maker.py` | Random symmetric grid generation |
+| `Games/cellularena/engine/coord.py` | Coord, Direction |
+| `Games/cellularena/engine/replay_loader.py` | Parse CodingGame replay JSON |
+| `Games/cellularena/engine/obs/` | Raw observation builder + ConnectorV2 feature encoding |
+| `Games/cellularena/policy/action_mask.py` | Legal-action mask builder from live game state |
+| `Games/cellularena/ray/` | DQN + SAC preprocessors, modules, configs, train entrypoints (new API stack) |
+| `Games/cellularena/engine/tests/test_env.py` | PettingZoo env smoke tests |
+| `Games/cellularena/engine/tests/test_replay.py` | Replay infrastructure tests |
+| `Games/cellularena/engine/tools/generate_test_replay.py` | Build synthetic replays for validation |
+| `Games/cellularena/engine/tools/export_episode_replay.py` | Export self-play replay for viewer |
+| `Games/cellularena/engine/tools/validate_engine.py` | Engine accuracy checker against CodingGame replays |
+| `Games/cellularena/engine/tools/replay_transform.py` | CodingGame → core and core → viewer format conversion |
 | `Viewer/` | Standalone TypeScript replay visualizer |
-| `test_env.py` | PettingZoo env smoke tests |
-| `test_replay.py` | Replay infrastructure tests |
-| `generate_test_replay.py` | Build synthetic replays for validation |
-| `export_episode_replay.py` | Export self-play replay for viewer |
-| `validate_engine.py` | Engine accuracy checker against CodingGame replays |
 | `Viewer/viewer_server.py` | Runtime conversion server (load raw replay via HTTP) |
 
 ---
@@ -181,10 +190,10 @@ python Viewer/viewer_server.py --port 8000
 
 | Task | Command |
 |---|---|
-| Check everything works | `python test_env.py && python test_replay.py` |
-| Generate + validate engine | `python generate_test_replay.py && python validate_engine.py` |
+| Check everything works | `python -m pytest Games/cellularena/engine/tests` |
+| Generate + validate engine | `python -m Games.cellularena.engine.tools.generate_test_replay && python -m Games.cellularena.engine.tools.validate_engine` |
 | Build viewer | `cd Viewer && npm install && npm run build` |
-| Export training replay | `python export_episode_replay.py --seed 123 --policy greedy` |
-| Fix validation failure | Edit `games/cellularena/game/game.py`, re-run `python validate_engine.py` |
+| Export training replay | `python -m Games.cellularena.engine.tools.export_episode_replay --seed 123 --policy greedy` |
+| Fix validation failure | Edit `Games/cellularena/engine/game.py`, re-run the validate command above |
 | Train with Rainbow DQN | `python -m Games.cellularena.ray.dqn.train --iterations 10 --checkpoint-dir Games/cellularena/experiments/dqn` |
 | Train with SAC | `python -m Games.cellularena.ray.sac.train --iterations 10 --checkpoint-dir Games/cellularena/experiments/sac` |

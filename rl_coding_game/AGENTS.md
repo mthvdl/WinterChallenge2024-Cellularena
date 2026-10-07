@@ -70,10 +70,12 @@ python -m Core.cli.download_rules --url https://www.codingame.com/contests/<PUZZ
 python -m Core.cli.download_games --url https://www.codingame.com/contests/<PUZZLE_ID>
 ```
 
-Scaffold creates: `games/<GAME>/env.py`, `game/game.py`, `game/replay_loader.py`,
-`offline_replay_adapter.py`, `factories.py`, `bots/obs_mapper.py`, `test_<GAME>.py`, `data/games/<GAME>/`.
+Scaffold creates a `Games/<GAME>/` package: `engine/` (game stub, `replay_loader.py`,
+`obs/`, `tools/`), `ray/` (DQN + SAC preprocessor/modules/config/train on the new
+API stack), `policy/action_mask.py`, `factories.py`, `experiments/` with
+`config.yaml.example` files, and smoke tests under `engine/tests/`.
 
-After implementing the engine, see `games/<GAME>/AGENTS.md` for game-specific commands.
+After implementing the engine, see `Games/<GAME>/AGENTS.md` for game-specific commands.
 
 ---
 
@@ -86,8 +88,11 @@ python -m pytest Games/<GAME>/engine/tests
 # Replay infrastructure tests
 python -m pytest Games/<GAME>/engine/tests/test_replay.py
 
-# Prioritized replay buffer tests
-python -m pytest Core/tests/test_prioritized_replay.py
+# Core replay-buffer tests (prioritized multi-agent episode buffer + store)
+python -m pytest Core/tests/test_replay_buffer.py Core/tests/test_replay_buffer_store.py
+
+# Core config / training smoke tests (new API stack + ConnectorV2)
+python -m pytest Core/tests/test_dqn_config.py Core/tests/test_sac_config.py
 ```
 
 All suites exit with code 0 on full pass.
@@ -98,16 +103,16 @@ All suites exit with code 0 on full pass.
 
 ```bash
 # From a game URL (derives game name and puzzle slug automatically)
-python download_games.py --url https://www.codingame.com/contests/<PUZZLE_ID>
+python -m Core.cli.download_games --url https://www.codingame.com/contests/<PUZZLE_ID>
 
 # Override top-N and games per player
-python download_games.py --url <URL> --top 10 --per-player 5
+python -m Core.cli.download_games --url <URL> --top 10 --per-player 5
 
 # Single game by known ID
-python download_games.py --url <URL> --game-id 12345678
+python -m Core.cli.download_games --url <URL> --game-id 12345678
 ```
 
-Replays saved to `data/games/<GAME>/replays/core_<ID>.json`.
+Replays saved to `Games/<GAME>/experiments/shared/replays/core_<ID>.json`.
 
 ---
 
@@ -130,7 +135,7 @@ python -m Games.<GAME>.ray.sac.train --iterations 10 \
 
 ```python
 # Replace <GAME>Env with the actual env class for your game
-from games.<GAME>.factories import make_env
+from Games.<GAME>.factories import make_env
 
 env = make_env()
 obs, infos = env.reset()
@@ -146,7 +151,7 @@ while env.agents:
 
 ```bash
 python -m Core.cli.export_to_codingame \
-    --checkpoint experiments/<GAME>/<EXP>/checkpoints/checkpoint_<step>.pt \
+    --checkpoint Games/<GAME>/experiments/<ALGO>/<EXP>/checkpoints/checkpoint_<step> \
     --output bot_<GAME>.py
 ```
 
@@ -156,20 +161,21 @@ python -m Core.cli.export_to_codingame \
 
 | File | What it does |
 |---|---|
-| `scaffold_game.py` | Scaffold a new game from a CodingGame URL |
-| `download_rules.py` | Download puzzle statement as Markdown + HTML + plain text |
-| `download_games.py` | Download replays from CodingGame API (any puzzle) |
-| `Games/<GAME>/ray/dqn/train.py` | Stock RLlib Rainbow DQN entrypoint |
-| `Games/<GAME>/ray/sac/train.py` | Stock RLlib SAC entrypoint |
+| `Core/cli/scaffold_game.py` | Scaffold a new game from a CodingGame URL |
+| `Core/cli/download_rules.py` | Download puzzle statement as Markdown + HTML + plain text |
+| `Core/cli/download_games.py` | Download replays from CodingGame API (any puzzle) |
+| `Core/cli/preflight_sac.py` | Print the fully resolved SAC settings with each value's source |
 | `Core/cli/export_to_codingame.py` | Export trained network as a CodingGame bot |
-| `validate_engine.py` | Engine accuracy checker (cellularena; extend per game) |
-| `replay_transform.py` | CodingGame → core and core → viewer format conversion |
-| `project_paths.py` | Canonical path conventions for experiments and data |
-| `test_replay.py` | Replay infrastructure tests |
-| `Core/ray_*.py` | Game-agnostic Ray environment, policy, training, and metrics helpers |
-| `Games/<GAME>/` | Per-game environment, engine, replay, and Ray adapters |
-| `data/games/<GAME>/replays/` | Shared replay dataset for that game |
-| `Games/<GAME>/experiments/<EXP>/` | Per-experiment Ray checkpoints and metrics |
+| `Games/<GAME>/ray/dqn/train.py` | Rainbow DQN entrypoint (RLlib new API stack) |
+| `Games/<GAME>/ray/sac/train.py` | SAC entrypoint (RLlib new API stack) |
+| `Games/<GAME>/engine/tools/validate_engine.py` | Engine accuracy checker (per game) |
+| `Games/<GAME>/engine/tools/replay_transform.py` | CodingGame → core and core → viewer format conversion |
+| `Core/project_paths.py` | Canonical path conventions (game, algorithm, experiment) |
+| `Games/<GAME>/engine/tests/test_replay.py` | Replay infrastructure tests |
+| `Core/ray_*.py` | Game-agnostic Ray env, policy, training, config, metrics, ConnectorV2 helpers |
+| `Games/<GAME>/` | Per-game engine, PettingZoo env, and RLlib adapters |
+| `Games/<GAME>/experiments/shared/replays/` | Shared replay dataset for that game |
+| `Games/<GAME>/experiments/<ALGO>/<EXP>/` | Per-experiment Ray checkpoints, replay buffer, and TensorBoard |
 
 ---
 
@@ -177,13 +183,13 @@ python -m Core.cli.export_to_codingame \
 
 | Task | Command |
 |---|---|
-| Scaffold new game | `python scaffold_game.py --url <CG_URL>` |
-| Download replays | `python download_games.py --url <CG_URL>` |
-| Run smoke tests | `python test_<GAME>.py` |
-| Validate engine | see `games/<GAME>/AGENTS.md` |
+| Scaffold new game | `python -m Core.cli.scaffold_game --url <CG_URL>` |
+| Download replays | `python -m Core.cli.download_games --url <CG_URL>` |
+| Run smoke tests | `python -m pytest Games/<GAME>/engine/tests` |
+| Validate engine | see `Games/<GAME>/AGENTS.md` |
 | Start DQN training | `python -m Games.<GAME>.ray.dqn.train --iterations 10 --checkpoint-dir Games/<GAME>/experiments/dqn` |
 | Start SAC training | `python -m Games.<GAME>.ray.sac.train --iterations 10 --checkpoint-dir Games/<GAME>/experiments/sac` |
-| View TensorBoard | `tensorboard --logdir experiments/<GAME> --port 6006` |
+| View TensorBoard | `tensorboard --logdir Games/<GAME>/experiments --port 6006` |
 | Export bot | `python -m Core.cli.export_to_codingame --checkpoint <PATH> --output bot.py` |
 
 ---

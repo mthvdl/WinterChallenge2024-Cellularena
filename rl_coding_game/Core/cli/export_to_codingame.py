@@ -27,17 +27,19 @@ Use ``--quantize int8`` to roughly halve the blob size if needed.
 
 Usage
 -----
-1. Write a small "loader script" that builds and returns a trained network::
+1. Write a small "loader script" that restores a trained RLModule from a Ray
+   checkpoint and exposes it as a variable named ``network`` whose
+   ``export_ops()`` returns the numpy inference op-tree::
 
     # my_loader.py
-    from Games.cellularena.engine.env import CellularenaEnv
-    from Games.cellularena.ray.dqn import DQNBot
+    from ray.rllib.core.rl_module.rl_module import RLModule
 
-    env = CellularenaEnv()
-    agent = list(env.possible_agents)[0]
-    bot = DQNBot(env.observation_space(agent), env.action_space(agent)).build()
-    bot.load("runs/my_run/checkpoint.pt")
-    network = bot.network          # ← the exporter reads this variable
+    module = RLModule.from_checkpoint(
+        "Games/cellularena/experiments/dqn/<EXP>/checkpoints/checkpoint_<step>"
+        "/learner_group/learner/rl_module/shared"
+    )
+    network = module          # ← the exporter reads this variable
+    network.export_ops        # must be implemented on the module
 
 2. Run the exporter::
 
@@ -50,8 +52,8 @@ Usage
 
 3. Copy ``cg_bot.py`` to the CodinGame IDE.
 
-The network must implement ``BaseNetwork.export_ops()``; see
-``rl/base_network.py`` for the format.
+The loaded ``network`` must implement ``export_ops()`` returning the op-tree
+format consumed below (``linear`` ops etc.).
 """
 from __future__ import annotations
 
@@ -430,8 +432,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "Path to a Python script that, when exec'd, defines a variable "
-            "``network`` holding a trained BaseNetwork in eval mode.  "
-            "Example:  network = bot.network  (after bot.load('ckpt.pt'))"
+            "``network`` with an ``export_ops()`` method, in eval mode.  "
+            "Example:  network = RLModule.from_checkpoint(<ckpt_dir>)"
         ),
     )
     p.add_argument(
